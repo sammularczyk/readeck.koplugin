@@ -63,6 +63,7 @@ function Api:callApi(sink, method, path, query, body, headers)
     if type(body) == "table" then
         -- Convert body to JSON
         local bodyJson = json.encode(body)
+        logger.dbg("JSON: ", bodyJson)
         source = ltn12.source.string(bodyJson)
 
         headers["Content-type"] = "application/json"
@@ -125,8 +126,8 @@ end
 function Api:bookmarkCreate(url, title, labels)
     local response, headers = self:callJsonApi("POST", "/bookmarks", {}, {
         url = url,
-        title = title,
-        labels = labels,
+        title = #title ~= 0 and title or nil,
+        labels = #labels ~= 0 and labels or nil,
     })
     if not response or not headers then
         return response, headers

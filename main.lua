@@ -83,7 +83,7 @@ function Readeck:init()
 end
 
 function Readeck:onAddArticleToReadeck(article_url)
-    -- TODO option to add tags, custom title, etc.
+    -- TODO option to add labels, custom title, etc.
     if not NetworkMgr:isOnline() then
         -- TODO store article link to upload on next sync
         UIManager:show(InfoMessage:new{
@@ -93,13 +93,62 @@ function Readeck:onAddArticleToReadeck(article_url)
         return nil, "Not connected"
     end
 
-    local bookmark_id, err = self.api:bookmarkCreate(article_url)
-    if bookmark_id then
-        UIManager:show(InfoMessage:new{
-            text = T(_("Bookmark for %1 successfully created with id %2\n"), Bd.url(article_url), bookmark_id),
-            --timeout = 1,
-        })
-    end
+    local bookmark_id, err
+    local dialog
+    dialog = MultiInputDialog:new {
+        title = T(_("Create bookmark for %1"), Bd.url(article_url)),
+        fields = {
+            {
+                description = _("Bookmark title"),
+                text = _(""),
+                hint = _("Custom title (optional)"),
+            },
+            {
+                description = _("Labels"),
+                text = "",
+                hint = _("label 1, label 2, ... (optional)"),
+            },
+        },
+        buttons = {
+            {
+                {
+                    text = _("Cancel"),
+                    id = "close",
+                    callback = function()
+                        UIManager:close(dialog)
+                    end
+                },
+                {
+                    text = _("OK"),
+                    id = "ok",
+                    callback = function()
+                        local fields = dialog:getFields()
+                        local title = fields[1]
+                        local labels_str = fields[2]
+                        local labels = {}
+                        for label in labels_str:gmatch("[^,%s]+") do
+                            table.insert(labels, label)
+                        end
+
+                        bookmark_id, err = self.api:bookmarkCreate(article_url, title, labels)
+
+                        UIManager:close(dialog)
+
+                        -- TODO ask if the user wants to open the bookmark now, or favorite it, or archive it
+                        UIManager:show(InfoMessage:new {
+                            text =
+                                bookmark_id
+                                and T(_("Bookmark for\n%1\nsuccessfully created."), Bd.url(article_url))
+                                or T(_("Failed to create bookmark: %1"), err),
+                        })
+                        return  bookmark_id, err
+                    end
+                },
+            },
+        },
+    }
+    UIManager:show(dialog)
+    dialog:onShowKeyboard()
 
     return bookmark_id, err
 end
