@@ -2,7 +2,6 @@
 @module koplugin.readeck
 ]]
 
-local _ = require("gettext")
 local logger = require("logger")
 
 local Dispatcher = require("dispatcher")  -- luacheck:ignore
@@ -12,6 +11,28 @@ local WidgetContainer = require("ui/widget/container/widgetcontainer")
 local DataStorage = require("datastorage")
 local LuaSettings = require("luasettings")
 local Event = require("ui/event")
+local Bd = require("ui/bidi")
+local DocSettings = require("docsettings")
+local DocumentRegistry = require("document/documentregistry")
+local FFIUtil = require("ffi/util")
+local FileManager = require("apps/filemanager/filemanager")
+local InputDialog = require("ui/widget/inputdialog")
+local Math = require("optmath")
+local MultiConfirmBox = require("ui/widget/multiconfirmbox")
+local MultiInputDialog = require("ui/widget/multiinputdialog")
+local NetworkMgr = require("ui/network/manager")
+local ReadHistory = require("readhistory")
+local filemanagerutil = require("apps/filemanager/filemanagerutil")
+local http = require("socket.http")
+local lfs = require("libs/libkoreader-lfs")
+local ltn12 = require("ltn12")
+local socket = require("socket")
+local socketutil = require("socketutil")
+local util = require("util")
+local _ = require("gettext")
+local N_ = _.ngettext
+local T = FFIUtil.template
+
 
 local Api = require("readeckapi")
 
@@ -50,9 +71,40 @@ function Readeck:init()
 
     self:onDispatcherRegisterActions()
     self.ui.menu:registerToMainMenu(self)
+    self.ui.link:addToExternalLinkDialog("22_readeck", function(this, link_url)
+        return {
+            text = _("Add to Readeck"),
+            callback = function()
+                UIManager:close(this.external_link_dialog)
+                this.ui:handleEvent(Event:new("AddArticleToReadeck", link_url))
+            end,
+        }
+    end)
 end
 
-function Readeck:addToMainMenu(menu_items) 
+function Readeck:onAddArticleToReadeck(article_url)
+    -- TODO option to add tags, custom title, etc.
+    if not NetworkMgr:isOnline() then
+        -- TODO store article link to upload on next sync
+        UIManager:show(InfoMessage:new{
+            text = T(_("Not connected to the internet. Couldn't add article:\n%1"), Bd.url(article_url)),
+            timeout = 1,
+        })
+        return nil, "Not connected"
+    end
+
+    local bookmark_id, err = self.api:bookmarkCreate(article_url)
+    if bookmark_id then
+        UIManager:show(InfoMessage:new{
+            text = T(_("Bookmark for %1 successfully created with id %2\n"), Bd.url(article_url), bookmark_id),
+            --timeout = 1,
+        })
+    end
+
+    return bookmark_id, err
+end
+
+function Readeck:addToMainMenu(menu_items)
     menu_items.readeck = {
         text = _("Readeck"),
         sorting_hint = "tools",
