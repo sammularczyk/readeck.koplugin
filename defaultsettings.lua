@@ -1,7 +1,5 @@
-local DataStorage = require("datastorage")
-
 return {
-  data_dir = DataStorage:getDataDir() .. "/readeck",
+  data_dir = require("datastorage"):getDataDir() .. "/readeck",
   server_url = nil,
   -- Authentication
   api_token = nil, --will be set automatically if username and password are set
