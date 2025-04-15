@@ -33,6 +33,8 @@ end
 
 function Readeck:init()
     self.settings = LuaSettings:open(DataStorage:getSettingsDir() .. "/readeck.lua")
+    -- TODO remove debug
+    logger:setLevel(logger.levels.dbg)
 
     -- TODO
     --if not self.settings:readSetting("api_token") then
@@ -50,7 +52,7 @@ function Readeck:init()
     self.ui.menu:registerToMainMenu(self)
 end
 
-function Readeck:addToMainMenu(menu_items)
+function Readeck:addToMainMenu(menu_items) 
     menu_items.readeck = {
         text = _("Readeck"),
         sorting_hint = "tools",
@@ -66,11 +68,35 @@ function Readeck:addToMainMenu(menu_items)
                             text = text .. " " .. key .. ": { " .. value.title .. " }"
                         end
                     else
-                        text = "Couldn't load bookmark list... " .. err
+                        text = err
                     end
                     UIManager:show(InfoMessage:new{
                         text = _(text),
                     })
+                end,
+            },
+            {
+                text = _("Add bookmark"),
+                callback = function()
+                    -- TODO this is just debugging
+                    local result, err = self.api:bookmarkCreate("https://koreader.rocks/", "", { "Testing", "koplugin" })
+                    if result then
+                        result = self.api:bookmarkDetails(result)
+                        local text = ""
+                        for key, value in pairs(result) do
+                            text = text .. tostring(key) .. ": " .. tostring(value) .. ",\n"
+                        end
+                        UIManager:show(InfoMessage:new{
+                            text = _(text),
+                        })
+                        UIManager:show(InfoMessage:new{
+                            text = _("Created bookmark " .. tostring(result)),
+                        })
+                    else
+                        UIManager:show(InfoMessage:new{
+                            text = _(err),
+                        })
+                    end
                 end,
             },
         },
