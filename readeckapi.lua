@@ -47,12 +47,13 @@ function Api:callApi(sink, method, path, query, body, headers)
         if type(val) == "table" then
             -- If an array, add the query several times
             for _, elt in pairs(val) do
-                url = url .. q .. "=" .. elt .. "&"
+                url = url .. q .. "=" .. tostring(elt) .. "&"
             end
         else
-            url = url .. q .. "=" .. val .. "&"
+            url = url .. q .. "=" .. tostring(val) .. "&"
         end
     end
+    logger.dbg("Readeck API: Sending " .. method .. " " .. url)
 
     headers = headers or {}
     if not headers.Authorization then
@@ -71,7 +72,7 @@ function Api:callApi(sink, method, path, query, body, headers)
     end
 
     local _, code, header = http.request {
-        url = self.url .. path,
+        url = url,
         method = method,
         headers = headers,
         proxy = self.proxy,
@@ -116,8 +117,8 @@ function Api:callJsonApi(method, path, query, body, headers)
 end
 
 --- See http://your.readeck/docs/api#get-/bookmarks
-function Api:bookmarkList(parameters)
-    return self:callJsonApi("GET", "/bookmarks", parameters)
+function Api:bookmarkList(query)
+    return self:callJsonApi("GET", "/bookmarks", query)
 end
 
 --- See http://your.readeck/docs/api#post-/bookmarks

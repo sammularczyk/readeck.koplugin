@@ -23,6 +23,8 @@ local _ = require("gettext")
 local N_ = _.ngettext
 local T = require("ffi/util").template
 
+local defaults = require("defaultsettings")
+
 local CatalogCache = Cache:new {
     -- Make it 20 slots, with no storage space constraints
     slots = 20,
@@ -51,29 +53,82 @@ function MenuPath:new(o)
     return o
 end
 
+function MenuPath:buildItemTable()
+    logger.dbg("Readeck: MenuPath:buildItemTable(): Method was not overriden. Returning empty item table.")
+    return {}
+end
+
 function MenuPath:getItemTable()
     return self.item_table or self:buildItemTable()
 end
 
+-- Bookmarks path
+
+local BookmarksPath = MenuPath:extend{
+    -- Queries parameters are directly used for https://[yourreadeck]/docs/api#get-/bookmarks
+    query = {}
+}
+
+function BookmarksPath:buildItemTable()
+    self.item_table = {}
+
+    -- TODO handle errors and internet connection
+    local bookmarks = self.browser.api:bookmarkList(self.query)
+    for i, b in ipairs(bookmarks) do
+        self.item_table[i] = {
+            text = _(b.title),
+            mandatory = _(b.read_progress .. "%"),
+            bookmark = b,
+        }
+    end
+
+    return self.item_table
+end
+
+function BookmarksPath:onMenuSelect(item)
+    -- TODO check for file already downloaded
+    local dir = self.browser.settings:readSetting("data_dir", defaults.data_dir)
+    util.makePath(dir)
+    local file = dir .. "/"
+        .. util.getSafeFilename(item.bookmark.id  .. "-" .. item.bookmark.title .. ".epub", dir)
+
+    local header, err = self.browser.api:bookmarkExport(file, item.bookmark.id)
+    if err then
+        UIManager:show(InfoMessage:new{
+            text = _("Error: " .. err),
+        })
+    else
+        UIManager:show(InfoMessage:new{
+            text = T(_("%1 downloaded to %2"), item.bookmark.title, file)
+        })
+    end
+end
+
+
 -- RootPath
 
-local RootPath = MenuPath:extend {
+local RootPath = MenuPath:extend{
     title = _("Redeck bookmarks")
 }
 
 function RootPath:buildItemTable()
     self.item_table = { {
             text = _("Unread Bookmarks"),
-            mandatory = 4,
+            -- TODO mandatory = get amount somehow
+            path = BookmarksPath:new{ browser = self.browser, query = { read_status = "unread", --[[ is_archived = false? ]] } }
         }, {
             text = _("Archived Bookmarks"),
-            mandatory = "babab",
+            -- TODO mandatory = get amount somehow
+            path = BookmarksPath:new{ browser = self.browser, query = { is_archived = true } }
         }, {
             text = _("Favorite Bookmarks"),
+            path = BookmarksPath:new{ browser = self.browser, query = { is_marked = true } }
         }, {
             text = _("All Bookmarks"),
+            path = BookmarksPath:new{ browser = self.browser, query = {} }
         }, {
             text = _("Labels"),
+            -- TODO get label list
         }, }
     for cid, cname in pairs(self.browser:getCollections()) do
         local citem = {
@@ -90,17 +145,18 @@ function RootPath:onLeftButtonTap()
 end
 
 function RootPath:onMenuSelect(item)
-    local new_path = MenuPath:new{
-        title = "NOVOTIT" .. item.text,
-        item_table = { {
-            text = _("abbaba")
-        } }
-    }
+    local new_path = item.path
+    new_path.title = _(new_path.title or item.text)
     self.browser:pushPath(new_path)
     return new_path
 end
 
+
+--------====== BROWSER WINDOW ======--------
+
 local Browser = Menu:extend {
+    api = nil,
+    settings = nil,
 }
 
 function Browser:init()
@@ -112,9 +168,6 @@ function Browser:init()
     self.return_arrow_propagation = false
 
     self.title_bar_left_icon = "appbar.search"
-    self.onLeftButtonTap = function()
-        --self:search()
-    end
 
     self.root_path = RootPath:new { browser = self }
     self.item_table = self.root_path:getItemTable()
@@ -147,7 +200,7 @@ end
 -- -- UI EVENT HANDLING -- --
 -- Menu overrides --
 function Browser:onMenuSelect(item)
-    self:getCurrentPath():onMenuSelect(item)
+    return self:getCurrentPath():onMenuSelect(item)
 end
 
 function Browser:onReturn()
@@ -155,13 +208,19 @@ function Browser:onReturn()
     local path = self.paths[#self.paths] or self.root_path
     -- return to root path
     self:switchItemTable(path.title, path:getItemTable(), path.itemnumber, nil, path.subtitle)
-    return true
+    return path
 end
 
 -- Menu action on return-arrow long-press (return to root path)
 function Browser:onHoldReturn()
-    self:init()
-    return true
+    self.paths = {}
+    self:switchItemTable(self.root_path.title, self.root_path:getItemTable(),
+                            self.root_path.itemnumber, nil, self.root_path.subtitle)
+    return self.root_path
+end
+
+function Browser:onLeftButtonTap()
+    self:getCurrentPath():onLeftButtonTap()
 end
 
 return Browser

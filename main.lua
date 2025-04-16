@@ -226,7 +226,7 @@ function Readeck:addToMainMenu(menu_items)
             {
                 text = _("Bookmarks"),
                 callback = function()
-                    self.browser = ReadeckBrowser:new{}
+                    self.browser = ReadeckBrowser:new{ api = self.api, settings = self.settings }
                     UIManager:show(self.browser)
                 end
             },
