@@ -11,7 +11,7 @@ local WidgetContainer = require("ui/widget/container/widgetcontainer")
 local DataStorage = require("datastorage")
 local LuaSettings = require("luasettings")
 local Event = require("ui/event")
-local Bd = require("ui/bidi")
+local BD = require("ui/bidi")
 local DocSettings = require("docsettings")
 local DocumentRegistry = require("document/documentregistry")
 local FFIUtil = require("ffi/util")
@@ -34,7 +34,8 @@ local N_ = _.ngettext
 local T = FFIUtil.template
 
 
-local Api = require("readeckapi")
+local ReadeckApi = require("readeckapi")
+local ReadeckBrowser = require("readeckbrowser")
 
 local defaults = require("defaultsettings")
 
@@ -55,13 +56,13 @@ end
 function Readeck:init()
     self.settings = LuaSettings:open(DataStorage:getSettingsDir() .. "/readeck.lua")
     -- TODO remove debug
-    logger:setLevel(logger.levels.dbg)
+    --logger:setLevel(logger.levels.dbg)
 
     -- TODO
     --if not self.settings:readSetting("api_token") then
     --    self:authenticate()
     --end
-    self.api = Api:new({
+    self.api = ReadeckApi:new({
         url = self.settings:readSetting("server_url", defaults.server_url),
         token = self.settings:readSetting("api_token", defaults.api_token)
     })
@@ -71,15 +72,17 @@ function Readeck:init()
 
     self:onDispatcherRegisterActions()
     self.ui.menu:registerToMainMenu(self)
-    self.ui.link:addToExternalLinkDialog("22_readeck", function(this, link_url)
-        return {
-            text = _("Add to Readeck"),
-            callback = function()
-                UIManager:close(this.external_link_dialog)
-                this.ui:handleEvent(Event:new("AddArticleToReadeck", link_url))
-            end,
-        }
-    end)
+    if self.ui.link then
+        self.ui.link:addToExternalLinkDialog("22_readeck", function(this, link_url)
+            return {
+                text = _("Add to Readeck"),
+                callback = function()
+                    UIManager:close(this.external_link_dialog)
+                    this.ui:handleEvent(Event:new("AddArticleToReadeck", link_url))
+                end,
+            }
+        end)
+    end
 end
 
 function Readeck:onAddArticleToReadeck(article_url)
@@ -87,7 +90,7 @@ function Readeck:onAddArticleToReadeck(article_url)
     if not NetworkMgr:isOnline() then
         -- TODO store article link to upload on next sync
         UIManager:show(InfoMessage:new{
-            text = T(_("Not connected to the internet. Couldn't add article:\n%1"), Bd.url(article_url)),
+            text = T(_("Not connected to the internet. Couldn't add article:\n%1"), BD.url(article_url)),
             timeout = 1,
         })
         return nil, "Not connected"
@@ -96,7 +99,7 @@ function Readeck:onAddArticleToReadeck(article_url)
     local bookmark_id, err
     local dialog
     dialog = MultiInputDialog:new {
-        title = T(_("Create bookmark for %1"), Bd.url(article_url)),
+        title = T(_("Create bookmark for %1"), BD.url(article_url)),
         fields = {
             {
                 description = _("Bookmark title"),
@@ -138,7 +141,7 @@ function Readeck:onAddArticleToReadeck(article_url)
                         UIManager:show(InfoMessage:new {
                             text =
                                 bookmark_id
-                                and T(_("Bookmark for\n%1\nsuccessfully created."), Bd.url(article_url))
+                                and T(_("Bookmark for\n%1\nsuccessfully created."), BD.url(article_url))
                                 or T(_("Failed to create bookmark: %1"), err),
                         })
                         return  bookmark_id, err
@@ -161,7 +164,6 @@ function Readeck:addToMainMenu(menu_items)
             {
                 text = _("DEBUG: Bookmark List"),
                 callback = function()
-                    -- TODO this is just debugging
                     local result, err = self.api:bookmarkList()
                     local text = ""
                     if result then
@@ -179,7 +181,6 @@ function Readeck:addToMainMenu(menu_items)
             {
                 text = _("DEBUG: Add example bookmark"),
                 callback = function()
-                    -- TODO this is just debugging
                     local result, err = self.api:bookmarkCreate("https://koreader.rocks/", "", { "Testing", "koplugin" })
                     if result then
                         result = self.api:bookmarkDetails(result)
@@ -220,6 +221,13 @@ function Readeck:addToMainMenu(menu_items)
                             text = T(_("Downloaded %1 to %2"), choice.title, file)
                         })
                     end
+                end
+            },
+            {
+                text = _("Bookmarks"),
+                callback = function()
+                    self.browser = ReadeckBrowser:new{}
+                    UIManager:show(self.browser)
                 end
             },
         },
