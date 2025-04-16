@@ -105,7 +105,7 @@ function Readeck:onAddArticleToReadeck(article_url)
             },
             {
                 description = _("Labels"),
-                text = "",
+                text = _(""),
                 hint = _("label 1, label 2, ... (optional)"),
             },
         },
@@ -159,7 +159,7 @@ function Readeck:addToMainMenu(menu_items)
         sorting_hint = "tools",
         sub_item_table = {
             {
-                text = _("Bookmark List"),
+                text = _("DEBUG: Bookmark List"),
                 callback = function()
                     -- TODO this is just debugging
                     local result, err = self.api:bookmarkList()
@@ -177,7 +177,7 @@ function Readeck:addToMainMenu(menu_items)
                 end,
             },
             {
-                text = _("Add bookmark"),
+                text = _("DEBUG: Add example bookmark"),
                 callback = function()
                     -- TODO this is just debugging
                     local result, err = self.api:bookmarkCreate("https://koreader.rocks/", "", { "Testing", "koplugin" })
@@ -199,6 +199,28 @@ function Readeck:addToMainMenu(menu_items)
                         })
                     end
                 end,
+            },
+            {
+                text = _("DEBUG: Download example bookmark"),
+                callback = function()
+                    local bookmarks = self.api:bookmarkList()
+                    local choice = bookmarks[1]
+
+                    local dir = self.settings:readSetting("data_dir", defaults.data_dir)
+                    local file = dir .. "/" .. util.getSafeFilename(choice.title .. ".epub", dir)
+
+                    util.makePath(dir)
+                    local header, err = self.api:bookmarkExport(file, choice.id)
+                    if err then
+                        UIManager:show(InfoMessage:new{
+                            text = _("Error: " .. err),
+                        })
+                    else
+                        UIManager:show(InfoMessage:new{
+                            text = T(_("Downloaded %1 to %2"), choice.title, file)
+                        })
+                    end
+                end
             },
         },
     }

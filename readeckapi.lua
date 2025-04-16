@@ -143,4 +143,33 @@ function Api:bookmarkDetails(id)
     return self:callJsonApi("GET", "/bookmarks/" .. id)
 end
 
+-- TODO bookmarkDelete
+-- TODO bookmarkUpdate
+
+-- TODO bookmarkArticle?
+
+--- See http://your.readeck/docs/api#get-/bookmarks/-id-/article.-format-
+-- @return Response header, or nil
+-- @return nil, or error message
+function Api:bookmarkExport(file, id)
+    return self:callDownloadApi(file, "GET", "/bookmarks/" .. id .. "/article.epub", nil, nil, { ["Accept"] = "application/epub+zip" })
+end
+
+-- TODO labelList
+-- TODO labelInfo
+-- TODO labelDelete
+-- TODO labelUpdate
+
+-- TODO highlightList
+-- TODO bookmarkHighlights
+-- TODO highlightCreate
+-- TODO highlightDelete
+-- TODO highlightUpdate
+
+-- TODO collectionList
+-- TODO collectionCreate
+-- TODO collectionDetails
+-- TODO collectionDelete
+-- TODO collectionUpdate
+
 return Api
