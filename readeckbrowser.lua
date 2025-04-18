@@ -115,17 +115,29 @@ function RootPath:buildItemTable()
     self.item_table = { {
             text = _("Unread Bookmarks"),
             -- TODO mandatory = get amount somehow
-            path = BookmarksPath:new{ browser = self.browser, query = { read_status = "unread", --[[ is_archived = false? ]] } }
+            path = BookmarksPath:new{
+                browser = self.browser,
+                query = { is_archived = false }
+            }
         }, {
             text = _("Archived Bookmarks"),
             -- TODO mandatory = get amount somehow
-            path = BookmarksPath:new{ browser = self.browser, query = { is_archived = true } }
+            path = BookmarksPath:new{
+                browser = self.browser,
+                query = { is_archived = true }
+            }
         }, {
             text = _("Favorite Bookmarks"),
-            path = BookmarksPath:new{ browser = self.browser, query = { is_marked = true } }
+            path = BookmarksPath:new{
+                browser = self.browser,
+                query = { is_marked = true }
+            }
         }, {
             text = _("All Bookmarks"),
-            path = BookmarksPath:new{ browser = self.browser, query = {} }
+            path = BookmarksPath:new{
+                browser = self.browser,
+                query = {}
+            }
         }, {
             text = _("Labels"),
             -- TODO get label list

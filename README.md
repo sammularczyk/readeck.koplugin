@@ -4,7 +4,8 @@ A [KOReader](https://koreader.rocks/) plugin to add integration with your
 [Readeck](https://readeck.org/en/) instance's API.
 
 > [!WARNING]  
-> THIS IS NOT YET IN A DECENTLY USABLE STATE.
+> THIS IS NOT YET IN A DECENTLY USABLE STATE.  
+> Progress tracked in [TODO.md](./TODO.md)
 
 ## Installation
 
