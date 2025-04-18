@@ -1,7 +1,8 @@
 local http = require("socket.http")
 local url = require("socket.url")
 local ltn12 = require("ltn12")
-local json = require("json")
+-- Apparently https://github.com/harningt/luajson
+local rapidjson = require("rapidjson")
 local logger = require("logger")
 
 local function log_return_error(err_msg)
@@ -36,13 +37,17 @@ end
 function Api:buildUrl(path, query)
     local target_url = self.url .. "/" .. path .. "?"
     for q, val in pairs(query or {}) do
-        if type(val) == "table" then
-            -- If an array, add the query several times
-            for _, elt in pairs(val) do
-                target_url = target_url .. url.escape(q) .. "=" .. url.escape(tostring(elt)) .. "&"
+        if val ~= rapidjson.null then
+            if type(val) == "table" then
+                -- If an array, add the query several times
+                for i, elt in pairs(val) do
+                    if elt ~= rapidjson.null then
+                        target_url = target_url .. url.escape(q) .. "=" .. url.escape(tostring(elt)) .. "&"
+                    end
+                end
+            else
+                target_url = target_url .. url.escape(q) .. "=" .. url.escape(tostring(val)) .. "&"
             end
-        else
-            target_url = target_url .. url.escape(q) .. "=" .. url.escape(tostring(val)) .. "&"
         end
     end
     return target_url
@@ -69,7 +74,8 @@ function Api:callApi(sink, method, path, query, body, headers)
     local source = body
     if type(body) == "table" then
         -- Convert body to JSON
-        local bodyJson = json.encode(body)
+        -- TODO check if this is still compatible with rapidjson (was maed for "luajson")
+        local bodyJson = rapidjson.encode(body)
         logger.dbg("JSON: ", bodyJson)
         source = ltn12.source.string(bodyJson)
 
@@ -116,7 +122,8 @@ function Api:callJsonApi(method, path, query, body, headers)
     local content = table.concat(response_data, "")
     logger.dbg("Readeck API response: " .. content)
 
-    local ok, result = pcall(json.decode, content)
+    -- TODO check if this is still compatible with rapidjson (was maed for "luajson")
+    local ok, result = pcall(rapidjson.decode, content, { null = "BABEU" })
     if ok then
         -- Empty JSON responses return nil, but we'd want an empty table
         return result or {}, resp_headers
@@ -180,9 +187,19 @@ end
 -- TODO highlightDelete
 -- TODO highlightUpdate
 
--- TODO collectionList
+--- See https://your.readeck/docs/api#get-/bookmarks/collections
+function Api:collectionList()
+    -- TODO define limits and pagination?
+    return self:callJsonApi("GET", "/bookmarks/collections")
+end
+
 -- TODO collectionCreate
--- TODO collectionDetails
+
+--- See https://your.readeck/docs/api#get-/bookmarks/collections/-id-
+function Api:collectionDetails(id)
+    return self:callJsonApi("GET", "/bookmarks/collections/" .. id)
+end
+
 -- TODO collectionDelete
 -- TODO collectionUpdate
 

@@ -172,12 +172,19 @@ function RootPath:buildItemTable()
             text = _("Labels"),
             path = LabelsPath:new{ browser = self.browser }
         }, }
-    for cid, cname in pairs(self.browser:getCollections()) do
-        local citem = {
-            text = _(cname),
-            collection_id = cid
+    for _i, collection in pairs(self.browser.api:collectionList()) do
+        -- NOTE: THIS IS ASSUMING NONE OF THE FIELDS OTHER THAN id RETURNED IN
+        -- collectionDetails CONTAINS ANY FIELDS RELEVANT FOR THE bookmarkList's
+        -- QUERY, AND WILL BE IGNORED, LEADING TO THE EXPECTED RESULT
+        collection.id = nil -- So the collection id doesn't conflict with the bookmark query
+        local item = {
+            text = _("Collection: " .. collection.name),
+            path = BookmarksPath:new{
+                browser = self.browser,
+                query = collection
+            }
         }
-        table.insert(self.item_table, citem)
+        table.insert(self.item_table, item)
     end
     return self.item_table
 end
@@ -231,12 +238,6 @@ function Browser:pushPath(path)
     table.insert(self.paths, path)
     self:switchItemTable(path.title, path:getItemTable(), path.itemnumber, nil, path.subtitle)
     return path
-end
-
--- @return A collection id, name table
-function Browser:getCollections()
-    -- TODO
-    return {}
 end
 
 -- -- UI EVENT HANDLING -- --

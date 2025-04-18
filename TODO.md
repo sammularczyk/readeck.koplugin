@@ -5,7 +5,7 @@
 - [-] Bookmark catalog
 	- [x] List by labels
 		- [ ] Search labels
-	- [ ] List collections
+	- [x] List collections
 	- [ ] Search bookmarks from all collections, or the current collection
 	- [x] Download bookmarks
 		- [ ] Only download new bookmarks, else, simply open the local copy
