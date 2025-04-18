@@ -56,7 +56,7 @@ end
 function Readeck:init()
     self.settings = LuaSettings:open(DataStorage:getSettingsDir() .. "/readeck.lua")
     -- TODO remove debug
-    --logger:setLevel(logger.levels.dbg)
+    logger:setLevel(logger.levels.dbg)
 
     -- TODO
     --if not self.settings:readSetting("api_token") then

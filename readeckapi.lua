@@ -1,4 +1,5 @@
 local http = require("socket.http")
+local url = require("socket.url")
 local ltn12 = require("ltn12")
 local json = require("json")
 local logger = require("logger")
@@ -32,6 +33,21 @@ function Api:new(o)
     return o
 end
 
+function Api:buildUrl(path, query)
+    local target_url = self.url .. "/" .. path .. "?"
+    for q, val in pairs(query or {}) do
+        if type(val) == "table" then
+            -- If an array, add the query several times
+            for _, elt in pairs(val) do
+                target_url = target_url .. url.escape(q) .. "=" .. url.escape(tostring(elt)) .. "&"
+            end
+        else
+            target_url = target_url .. url.escape(q) .. "=" .. url.escape(tostring(val)) .. "&"
+        end
+    end
+    return target_url
+end
+
 ---
 -- @param sink
 -- @param method GET, POST, DELETE, PATCH, etc…
@@ -42,18 +58,8 @@ end
 -- @return header, or nil
 -- @return nil, or error message
 function Api:callApi(sink, method, path, query, body, headers)
-    local url = self.url .. path .. "?"
-    for q, val in pairs(query or {}) do
-        if type(val) == "table" then
-            -- If an array, add the query several times
-            for _, elt in pairs(val) do
-                url = url .. q .. "=" .. tostring(elt) .. "&"
-            end
-        else
-            url = url .. q .. "=" .. tostring(val) .. "&"
-        end
-    end
-    logger.dbg("Readeck API: Sending " .. method .. " " .. url)
+    local target_url = self:buildUrl(path, query)
+    logger.dbg("Readeck API: Sending " .. method .. " " .. target_url)
 
     headers = headers or {}
     if not headers.Authorization then
@@ -72,7 +78,7 @@ function Api:callApi(sink, method, path, query, body, headers)
     end
 
     local _, code, header = http.request {
-        url = url,
+        url = target_url,
         method = method,
         headers = headers,
         proxy = self.proxy,
@@ -108,25 +114,28 @@ function Api:callJsonApi(method, path, query, body, headers)
     end
 
     local content = table.concat(response_data, "")
+    logger.dbg("Readeck API response: " .. content)
+
     local ok, result = pcall(json.decode, content)
     if ok then
-        return result, resp_headers
+        -- Empty JSON responses return nil, but we'd want an empty table
+        return result or {}, resp_headers
     else
         return log_return_error("Failed to parse JSON in response: " .. tostring(result))
     end
 end
 
---- See http://your.readeck/docs/api#get-/bookmarks
+--- See https://your.readeck/docs/api#get-/bookmarks
 function Api:bookmarkList(query)
     return self:callJsonApi("GET", "/bookmarks", query)
 end
 
---- See http://your.readeck/docs/api#post-/bookmarks
+--- See https://your.readeck/docs/api#post-/bookmarks
 -- @return The new bookmark's id, or nil
 -- @return nil, or error message
-function Api:bookmarkCreate(url, title, labels)
+function Api:bookmarkCreate(bookmark_url, title, labels)
     local response, headers = self:callJsonApi("POST", "/bookmarks", {}, {
-        url = url,
+        url = bookmark_url,
         title = #title ~= 0 and title or nil,
         labels = #labels ~= 0 and labels or nil,
     })
@@ -149,14 +158,18 @@ end
 
 -- TODO bookmarkArticle?
 
---- See http://your.readeck/docs/api#get-/bookmarks/-id-/article.-format-
+--- See https://your.readeck/docs/api#get-/bookmarks/-id-/article.-format-
 -- @return Response header, or nil
 -- @return nil, or error message
 function Api:bookmarkExport(file, id)
     return self:callDownloadApi(file, "GET", "/bookmarks/" .. id .. "/article.epub", nil, nil, { ["Accept"] = "application/epub+zip" })
 end
 
--- TODO labelList
+--- See https://your.readeck/docs/api#get-/bookmarks/labels
+function Api:labelList()
+    return self:callJsonApi("GET", "/bookmarks/labels")
+end
+
 -- TODO labelInfo
 -- TODO labelDelete
 -- TODO labelUpdate

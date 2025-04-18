@@ -62,7 +62,7 @@ function MenuPath:getItemTable()
     return self.item_table or self:buildItemTable()
 end
 
--- Bookmarks path
+-- -- Bookmarks path
 
 local BookmarksPath = MenuPath:extend{
     -- Queries parameters are directly used for https://[yourreadeck]/docs/api#get-/bookmarks
@@ -104,8 +104,38 @@ function BookmarksPath:onMenuSelect(item)
     end
 end
 
+-- -- LabelsPath
 
--- RootPath
+local LabelsPath = MenuPath:extend{
+    title = _("Redeck labels")
+}
+
+function LabelsPath:buildItemTable()
+    self.item_table = {}
+
+    -- TODO handle errors and internet connection
+    local labels = self.browser.api:labelList()
+    for i, l in ipairs(labels) do
+        self.item_table[i] = {
+            text = _(l.name),
+            mandatory = _(l.count),
+            path = BookmarksPath:new{
+                title = _(l.name),
+                browser = self.browser,
+                query = { labels = '"' .. l.name .. '"' }
+            },
+        }
+    end
+
+    return self.item_table
+end
+
+function LabelsPath:onMenuSelect(item)
+    self.browser:pushPath(item.path)
+    return item.path
+end
+
+-- -- RootPath
 
 local RootPath = MenuPath:extend{
     title = _("Redeck bookmarks")
@@ -140,7 +170,7 @@ function RootPath:buildItemTable()
             }
         }, {
             text = _("Labels"),
-            -- TODO get label list
+            path = LabelsPath:new{ browser = self.browser }
         }, }
     for cid, cname in pairs(self.browser:getCollections()) do
         local citem = {
