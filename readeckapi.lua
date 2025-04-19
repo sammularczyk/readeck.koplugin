@@ -5,6 +5,8 @@ local ltn12 = require("ltn12")
 local rapidjson = require("rapidjson")
 local logger = require("logger")
 
+local defaults = require("defaultsettings")
+
 local function log_return_error(err_msg)
     err_msg = "Readeck API error: " .. err_msg
     logger.warn(err_msg)
@@ -12,30 +14,35 @@ local function log_return_error(err_msg)
 end
 
 local Api = {
-    url = nil,
+    settings = nil,
     token = nil,
     proxy = nil,
+    logged_in = false,
 }
 
 function Api:new(o)
-    if not o
-        or not o.url
-        or not o.token then
-        return nil
-    end
-
+    o = o or {}
     setmetatable(o, self)
     self.__index = self
-
-    if not o.url:match("/api$") then
-        o.url = o.url .. "/api"
-    end
-
+    o:init()
     return o
 end
 
+function Api:init()
+    if self:getSetting("server_url") and self:getSetting("api_token") then
+        self.logged_in = true
+    end
+end
+
+function Api:getSetting(setting)
+    return self.settings:readSetting(setting, defaults[setting])
+end
+
+
+-------======= API call utilities =======-------
+
 function Api:buildUrl(path, query)
-    local target_url = self.url .. "/" .. path .. "?"
+    local target_url = self:getSetting("server_url") .. "/api" .. path .. "?"
     for q, val in pairs(query or {}) do
         if val ~= rapidjson.null then
             if type(val) == "table" then
@@ -62,13 +69,13 @@ end
 -- @param[opt] headers Defaults to Authorization for API endpoints, none for external
 -- @return header, or nil
 -- @return nil, or error message
-function Api:callApi(sink, method, path, query, body, headers)
+function Api:callApi(sink, method, path, query, body, headers, no_auth)
     local target_url = self:buildUrl(path, query)
     logger.dbg("Readeck API: Sending " .. method .. " " .. target_url)
 
     headers = headers or {}
-    if not headers.Authorization then
-        headers.Authorization = "Bearer " .. self.token
+    if not headers.Authorization and not no_auth then
+        headers.Authorization = "Bearer " .. self:getSetting("api_token")
     end
 
     local source = body
@@ -92,45 +99,92 @@ function Api:callApi(sink, method, path, query, body, headers)
         source = source,
     }
 
-    if code >= 400 then
+    if type(code) ~= "number" or code >= 400 then
         return log_return_error("API call failed with status code " .. code)
     else
         return header
     end
 end
 
-function Api:callDownloadApi(file, method, path, query, body, headers)
+function Api:callDownloadApi(file, method, path, query, body, headers, no_auth)
     local sink = ltn12.sink.file(io.open(file, "wb"))
-    return self:callApi(sink, method, path, query, body, headers)
+    return self:callApi(sink, method, path, query, body, headers, no_auth)
 end
 
 ---
 -- @return Lua table parsed from response JSON, or nil
 -- @return The response headers, or error message
-function Api:callJsonApi(method, path, query, body, headers)
+function Api:callJsonApi(method, path, query, body, headers, no_auth)
     headers = headers or {}
     headers["Accept"] = "application/json"
 
     local response_data = {}
     local sink = ltn12.sink.table(response_data)
 
-    local resp_headers, err = self:callApi(sink, method, path, query, body, headers)
-    if not resp_headers then
-        return nil, err
-    end
+    local resp_headers, err = self:callApi(sink, method, path, query, body, headers, no_auth)
 
     local content = table.concat(response_data, "")
     logger.dbg("Readeck API response: " .. content)
 
-    -- TODO check if this is still compatible with rapidjson (was maed for "luajson")
-    local ok, result = pcall(rapidjson.decode, content, { null = "BABEU" })
-    if ok then
+    -- TODO check if this is still compatible with rapidjson (was made for "luajson")
+    local json_ok, json_result = pcall(rapidjson.decode, content)
+
+    -- Even if the API call fails (returns > 400), we might still want the response JSON
+    if not resp_headers then
+        return nil, err, json_result
+    end
+
+    if json_ok then
         -- Empty JSON responses return nil, but we'd want an empty table
-        return result or {}, resp_headers
+        return json_result or {}, resp_headers
     else
-        return log_return_error("Failed to parse JSON in response: " .. tostring(result))
+        return log_return_error("Failed to parse JSON in response: " .. tostring(json_result))
     end
 end
+
+
+-------======= Concrete API functions =======-------
+
+local hostname
+
+-- -- User Profile
+
+--- See https://your.readeck/docs/api#post-/auth
+function Api:authenticate(username, password)
+    if not hostname then
+        local cmd_out, err, err_code = io.popen("hostname")
+        if cmd_out then
+            hostname = cmd_out:read("*l")
+            cmd_out:close()
+        else
+            logger.dbg("Readeck: 'hostname' command failed: " .. err .. " (" .. tostring(err_code) .. ")")
+        end
+    end
+    local body = {
+        application = "readeck.koplugin" .. (hostname and (" @ " .. hostname) or ""),
+        username = username,
+        password = password,
+        roles = { "scoped_bookmarks_r", "scoped_bookmarks_w" }
+    }
+    local result, err, err_json = self:callJsonApi("POST", "/auth", nil, body, nil, true)
+    if not result then
+        return result, err_json and err_json.message or err
+    end
+
+    if result.token then
+        self.settings:saveSetting("api_token", result.token)
+        self.logged_in = true
+    end
+    return result.token
+end
+
+--- See https://your.readeck/docs/api#get-/profile
+function Api:userProfile()
+    return self:callJsonApi("GET", "/profile")
+end
+
+
+-- -- Bookmarks
 
 --- See https://your.readeck/docs/api#get-/bookmarks
 function Api:bookmarkList(query)
@@ -172,6 +226,9 @@ function Api:bookmarkExport(file, id)
     return self:callDownloadApi(file, "GET", "/bookmarks/" .. id .. "/article.epub", nil, nil, { ["Accept"] = "application/epub+zip" })
 end
 
+
+-- -- Labels
+
 --- See https://your.readeck/docs/api#get-/bookmarks/labels
 function Api:labelList()
     return self:callJsonApi("GET", "/bookmarks/labels")
@@ -181,11 +238,16 @@ end
 -- TODO labelDelete
 -- TODO labelUpdate
 
+
+-- -- Highlights
 -- TODO highlightList
 -- TODO bookmarkHighlights
 -- TODO highlightCreate
 -- TODO highlightDelete
 -- TODO highlightUpdate
+
+
+-- -- Collections
 
 --- See https://your.readeck/docs/api#get-/bookmarks/collections
 function Api:collectionList()

@@ -63,8 +63,7 @@ function Readeck:init()
     --    self:authenticate()
     --end
     self.api = ReadeckApi:new({
-        url = self.settings:readSetting("server_url", defaults.server_url),
-        token = self.settings:readSetting("api_token", defaults.api_token)
+        settings = self.settings,
     })
     if not self.api then
         logger.err("Readeck error: Couldn't load API.")
@@ -162,68 +161,20 @@ function Readeck:addToMainMenu(menu_items)
         sorting_hint = "tools",
         sub_item_table = {
             {
-                text = _("DEBUG: Bookmark List"),
+                text = _("Settings"),
                 callback = function()
-                    local result, err = self.api:bookmarkList()
-                    local text = ""
-                    if result then
-                        for key, value in pairs(result) do
-                            text = text .. " " .. key .. ": { " .. value.title .. " }"
-                        end
-                    else
-                        text = err
-                    end
-                    UIManager:show(InfoMessage:new{
-                        text = _(text),
-                    })
+                    return nil
                 end,
-            },
-            {
-                text = _("DEBUG: Add example bookmark"),
-                callback = function()
-                    local result, err = self.api:bookmarkCreate("https://koreader.rocks/", "", { "Testing", "koplugin" })
-                    if result then
-                        result = self.api:bookmarkDetails(result)
-                        local text = ""
-                        for key, value in pairs(result) do
-                            text = text .. tostring(key) .. ": " .. tostring(value) .. ",\n"
-                        end
-                        UIManager:show(InfoMessage:new{
-                            text = _(text),
-                        })
-                        UIManager:show(InfoMessage:new{
-                            text = _("Created bookmark " .. tostring(result)),
-                        })
-                    else
-                        UIManager:show(InfoMessage:new{
-                            text = _(err),
-                        })
-                    end
-                end,
-            },
-            {
-                text = _("DEBUG: Download example bookmark"),
-                callback = function()
-                    local bookmarks = self.api:bookmarkList()
-                    local choice = bookmarks[1]
-
-                    local dir = self.settings:readSetting("data_dir", defaults.data_dir)
-                    local file = dir .. "/" .. util.getSafeFilename(choice.title .. ".epub", dir)
-
-                    util.makePath(dir)
-                    local header, err = self.api:bookmarkExport(file, choice.id)
-                    if err then
-                        UIManager:show(InfoMessage:new{
-                            text = _("Error: " .. err),
-                        })
-                    else
-                        UIManager:show(InfoMessage:new{
-                            text = T(_("Downloaded %1 to %2"), choice.title, file)
-                        })
-                    end
-                end
-            },
-            {
+                sub_item_table = {
+                    {
+                        text = _("Configure Readeck server"),
+                        keep_menu_open = true,
+                        callback = function()
+                            return self:severConfigDialog()
+                        end,
+                    }
+                },
+            }, {
                 text = _("Bookmarks"),
                 callback = function()
                     self.browser = ReadeckBrowser:new{ api = self.api, settings = self.settings }
@@ -234,11 +185,90 @@ function Readeck:addToMainMenu(menu_items)
     }
 end
 
-function Readeck:onHelloWorld()
-    local popup = InfoMessage:new{
-        text = _("Hello World"),
+function Readeck:getSetting(setting)
+    return self.settings:readSetting(setting, defaults[setting])
+end
+
+function Readeck:severConfigDialog()
+    local text_info = T(_([[
+If you don't want your password being stored in plaintext, you can erase the password field and save the settings after logging in and getting your API token.
+
+You can also edit the configuration file directly in your settings folder:
+%1
+and then restart KOReader.]]), self.settings.file)
+
+    local dialog
+    local function saveSettings(fields)
+        self.settings:saveSetting("server_url", fields[1]:gsub("/*$", "")) -- remove all trailing slashes
+            :saveSetting("username", fields[2])
+            :saveSetting("password", fields[3])
+            :saveSetting("api_token", fields[4])
+            :flush()
+    end
+
+    dialog = MultiInputDialog:new{
+        title = _("Readeck server settings"),
+        fields = {
+            {
+                text = _(self:getSetting("server_url")),
+                hint = _("Server URL")
+            }, {
+                text = _(self:getSetting("username")),
+                hint = _("Username (if no API Token is given)")
+            }, {
+                text = _(self:getSetting("password")),
+                text_type = "password",
+                hint = _("Password (if no API Token is given)")
+            }, {
+                text = _(self:getSetting("api_token")),
+                description = _("API Token"),
+                text_type = "password",
+                hint = _("Will be acquired automatically if Username and Password are given.")
+            },
+        },
+        buttons = {
+            {
+                {
+                    text = _("Cancel"),
+                    id = "close",
+                    callback = function()
+                        UIManager:close(dialog)
+                    end
+                }, {
+                    text = _("Info"),
+                    callback = function()
+                        UIManager:show(InfoMessage:new{ text = text_info })
+                    end
+                }, {
+                    text = _("Save"),
+                    callback = function()
+                        saveSettings(dialog:getFields())
+                        UIManager:close(dialog)
+                    end
+                },
+            }, {
+                {
+                    text = _("Sign in (generate API token) and save"),
+                    callback = function()
+                        local fields = dialog:getFields()
+                        local token, err = self.api:authenticate(fields[2], fields[3])
+                        if not token then
+                            UIManager:show(InfoMessage:new{ text = _(err) })
+                            return
+                        end
+
+                        fields[4] = token
+                        UIManager:show(InfoMessage:new{ text = _("Logged in successfully.") })
+
+                        saveSettings(fields)
+                        UIManager:close(dialog)
+                    end
+                }
+            },
+        },
     }
-    UIManager:show(popup)
+    UIManager:show(dialog)
+    dialog:onShowKeyboard()
 end
 
 return Readeck

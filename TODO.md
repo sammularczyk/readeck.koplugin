@@ -16,7 +16,9 @@
 - [-] Add bookmark links to Readeck while reading
 	- [x] when online
 	- [ ] when offline, add bookmark to "push queue" until online
-- [ ] Configuration menu
+- [-] Configuration menu
+	- [x] Logging in
+	- [ ] More settings...?
 
 ## Details
 

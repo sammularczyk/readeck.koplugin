@@ -72,7 +72,7 @@ local BookmarksPath = MenuPath:extend{
 function BookmarksPath:buildItemTable()
     self.item_table = {}
 
-    -- TODO handle errors and internet connection
+    -- TODO handle permission errors and internet connection
     local bookmarks = self.browser.api:bookmarkList(self.query)
     for i, b in ipairs(bookmarks) do
         self.item_table[i] = {
@@ -142,7 +142,8 @@ local RootPath = MenuPath:extend{
 }
 
 function RootPath:buildItemTable()
-    self.item_table = { {
+    self.item_table = {
+        {
             text = _("Unread Bookmarks"),
             -- TODO mandatory = get amount somehow
             path = BookmarksPath:new{
@@ -171,20 +172,25 @@ function RootPath:buildItemTable()
         }, {
             text = _("Labels"),
             path = LabelsPath:new{ browser = self.browser }
-        }, }
-    for _i, collection in pairs(self.browser.api:collectionList()) do
-        -- NOTE: THIS IS ASSUMING NONE OF THE FIELDS OTHER THAN id RETURNED IN
-        -- collectionDetails CONTAINS ANY FIELDS RELEVANT FOR THE bookmarkList's
-        -- QUERY, AND WILL BE IGNORED, LEADING TO THE EXPECTED RESULT
-        collection.id = nil -- So the collection id doesn't conflict with the bookmark query
-        local item = {
-            text = _("Collection: " .. collection.name),
-            path = BookmarksPath:new{
-                browser = self.browser,
-                query = collection
+        },
+    }
+
+    local result, err = self.browser.api:collectionList()
+    if result then
+        for i, collection in pairs(self.browser.api:collectionList()) do
+            -- NOTE: THIS IS ASSUMING NONE OF THE FIELDS OTHER THAN id RETURNED IN
+            -- collectionDetails CONTAINS ANY FIELDS RELEVANT FOR THE bookmarkList's
+            -- QUERY, AND WILL BE IGNORED, LEADING TO THE EXPECTED RESULT
+            collection.id = nil -- So the collection id doesn't conflict with the bookmark query
+            local item = {
+                text = _("Collection: " .. collection.name),
+                path = BookmarksPath:new{
+                    browser = self.browser,
+                    query = collection
+                }
             }
-        }
-        table.insert(self.item_table, item)
+            table.insert(self.item_table, item)
+        end
     end
     return self.item_table
 end
