@@ -281,12 +281,64 @@ function Api:bookmarkDownloaded(bookmark)
     return util.fileExists(self:getBookmarkFilename(bookmark))
 end
 
-function Api:applyBookmarkDetails(bookmark)
-    -- TODO
+-- From https://forums.solar2d.com/t/convert-string-to-date/309743/2
+local function makeTimeStamp(dateString)
+    -- 2025-04-20T11:19:34.431815474Z
+    local year, month, day, hour, minute, seconds, offset, offsethour, offsetmin =
+            dateString:match("(%d+)%-(%d+)%-(%d+)T(%d+):(%d+):(%d+).%d+([%+%-])(%d+)%:(%d+)")
+    local offsetTimestamp
+    if year then
+        offsetTimestamp = offsethour * 60 + offsetmin
+        if offset == "-" then offsetTimestamp = offsetTimestamp * -1 end
+    else
+        year, month, day, hour, minute, seconds =
+                dateString:match("(%d+)%-(%d+)%-(%d+)T(%d+):(%d+):(%d+).%d+Z")
+        offsetTimestamp = 0
+    end
+    print(year,month,day,hour,minute,seconds,offset,offsethour,offsetmin)
+    local convertedTimestamp = os.time({year = year, month = month, day = day,
+                                        hour = hour, min = minute, sec = seconds})
+    return convertedTimestamp + offsetTimestamp
 end
 
+function Api:applyBookmarkDetails(bookmark)
+    if not self:bookmarkDownloaded(bookmark) then
+        return nil, "Bookmark not downloaded"
+    end
+
+    -- TODO apply reading progress and title
+end
+
+function Api:uploadBookmarkDetails(bookmark)
+    if not self:bookmarkDownloaded(bookmark) then
+        return nil, "Bookmark not downloaded"
+    end
+
+    -- TODO upload reading progress and title
+end
+
+-- TODO function not tested
 function Api:syncBookmarkDetails(bookmark)
-    -- TODO
+    if not self:bookmarkDownloaded(bookmark) then
+        return nil, "Bookmark not downloaded"
+    end
+
+    local file = self:getBookmarkFilename(bookmark)
+    local localtime, err = lfs.attributes(file, 'modification')
+    if err then
+        logger.dbg("LFS: " .. err)
+        return nil, err
+    end
+
+    local ok, result = pcall(makeTimeStamp, bookmark.updated)
+    if not ok then logger.dbg("Error making timestamp: " .. result) return nil, result end
+    local remotetime = result
+
+    if localtime > remotetime then
+        return self:uploadBookmarkDetails(bookmark)
+    else
+        return self:applyBookmarkDetails(bookmark)
+    end
 end
 
 --- Shortcut for bookmarkExport with a properly named file
@@ -311,5 +363,5 @@ function Api:downloadBookmark(bookmark)
     end
 end
 
-
 return Api
+
