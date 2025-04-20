@@ -58,16 +58,9 @@ function Readeck:init()
     -- TODO remove debug
     logger:setLevel(logger.levels.dbg)
 
-    -- TODO
-    --if not self.settings:readSetting("api_token") then
-    --    self:authenticate()
-    --end
     self.api = ReadeckApi:new({
         settings = self.settings,
     })
-    if not self.api then
-        logger.err("Readeck error: Couldn't load API.")
-    end
 
     self:onDispatcherRegisterActions()
     self.ui.menu:registerToMainMenu(self)

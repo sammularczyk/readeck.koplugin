@@ -19,9 +19,16 @@
 - [-] Configuration menu
 	- [x] Logging in
 	- [ ] More settings...?
+- [ ] Delete downloaded bookmarks
+	- [ ] Button to delete all/read/archived bookmarks
+	- [ ] Hold a bookmark in the browser to allow deletion
 
 ## Details
 
 - Bookmark catalog
 	- [ ] Be able to use the "return" arrow even when some sub-catalog is empty
 
+## Bugs
+
+- [ ] On Kindle (not on PC), text input fields automatically fill up with some text
+	about reporting bugs via email.

@@ -10,6 +10,7 @@ local Menu = require("ui/widget/menu")
 local MultiInputDialog = require("ui/widget/multiinputdialog")
 local NetworkMgr = require("ui/network/manager")
 local Notification = require("ui/widget/notification")
+local ReaderUI = require("apps/reader/readerui")
 local UIManager = require("ui/uimanager")
 local http = require("socket.http")
 local lfs = require("libs/libkoreader-lfs")
@@ -86,22 +87,24 @@ function BookmarksPath:buildItemTable()
 end
 
 function BookmarksPath:onMenuSelect(item)
-    -- TODO check for file already downloaded
-    local dir = self.browser.settings:readSetting("data_dir", defaults.data_dir)
-    util.makePath(dir)
-    local file = dir .. "/"
-        .. util.getSafeFilename(item.bookmark.id  .. "-" .. item.bookmark.title .. ".epub", dir)
+    local downloading_dialog = InfoMessage:new{
+        text = T(_( self.browser.api:bookmarkDownloaded(item.bookmark)
+                    and "Opening bookmark...\n%1"
+                    or "Downloading bookmark...\n%1"), item.bookmark.title)
+    }
+    UIManager:show(downloading_dialog)
 
-    local header, err = self.browser.api:bookmarkExport(file, item.bookmark.id)
-    if err then
-        UIManager:show(InfoMessage:new{
-            text = _("Error: " .. err),
-        })
-    else
-        UIManager:show(InfoMessage:new{
-            text = T(_("%1 downloaded to %2"), item.bookmark.title, file)
-        })
+    local file, already_downloaded = self.browser.api:downloadBookmark(item.bookmark)
+    if not file then
+        local err = already_downloaded
+
+        UIManager:close(downloading_dialog)
+        UIManager:show(InfoMessage:new{ text = _("Error downloading bookmark: " .. err), })
+        return nil
     end
+
+    UIManager:close(downloading_dialog)
+    ReaderUI:showReader(file)
 end
 
 -- -- LabelsPath

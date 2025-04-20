@@ -1,6 +1,8 @@
 local http = require("socket.http")
 local url = require("socket.url")
 local ltn12 = require("ltn12")
+local util = require("util")
+local lfs = require("libs/libkoreader-lfs")
 -- Apparently https://github.com/harningt/luajson
 local rapidjson = require("rapidjson")
 local logger = require("logger")
@@ -226,7 +228,6 @@ function Api:bookmarkExport(file, id)
     return self:callDownloadApi(file, "GET", "/bookmarks/" .. id .. "/article.epub", nil, nil, { ["Accept"] = "application/epub+zip" })
 end
 
-
 -- -- Labels
 
 --- See https://your.readeck/docs/api#get-/bookmarks/labels
@@ -264,5 +265,51 @@ end
 
 -- TODO collectionDelete
 -- TODO collectionUpdate
+
+
+-------======= Other functions =======-------
+
+function Api:getDownloadDir()
+    return self:getSetting("data_dir") .. "/downloaded"
+end
+
+function Api:getBookmarkFilename(bookmark)
+    return self:getDownloadDir() .. "/" .. util.getSafeFilename(bookmark.id .. ".epub")
+end
+
+function Api:bookmarkDownloaded(bookmark)
+    return util.fileExists(self:getBookmarkFilename(bookmark))
+end
+
+function Api:applyBookmarkDetails(bookmark)
+    -- TODO
+end
+
+function Api:syncBookmarkDetails(bookmark)
+    -- TODO
+end
+
+--- Shortcut for bookmarkExport with a properly named file
+-- @return the filepath, or nil
+-- @return true if already downloaded, or error message
+function Api:downloadBookmark(bookmark)
+    local file = self:getBookmarkFilename(bookmark)
+    if util.fileExists(file) then
+        return file, true
+    end
+
+    util.makePath(self:getDownloadDir())
+
+    local result, err = self:callDownloadApi(file, "GET", "/bookmarks/" .. bookmark.id .. "/article.epub",
+                    nil, nil, { ["Accept"] = "application/epub+zip" })
+    if result then
+        self:applyBookmarkDetails(bookmark)
+        return file, false
+    else
+        util.removeFile(file)
+        return result, err
+    end
+end
+
 
 return Api
