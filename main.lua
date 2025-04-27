@@ -44,8 +44,11 @@ local defaults = require("defaultsettings")
 
 local function parseLabels(labels_str)
     local labels = {}
-    for label in labels_str:gmatch("[^,%s]+") do
-        table.insert(labels, label)
+    for label in labels_str:gmatch("[^,]+") do
+        label = label:match("^%s*(.-)%s*$")
+        if #label > 0 then -- ignore only whitespace sections
+            table.insert(labels, label)
+        end
     end
 
     return labels
@@ -95,7 +98,6 @@ function Readeck:init()
 end
 
 function Readeck:onAddArticleToReadeck(article_url)
-    -- TODO option to add labels, custom title, etc.
     if not NetworkMgr:isOnline() then
         -- TODO store article link to upload on next sync
         UIManager:show(InfoMessage:new{
@@ -103,6 +105,12 @@ function Readeck:onAddArticleToReadeck(article_url)
             timeout = 3,
         })
         return nil, "Not connected"
+    end
+
+    -- TODO option to add as favorite, mark as read, or archive immediately
+    local labels_text = labelsToString(self:getSetting("default_labels"))
+    if #labels_text > 0 then
+        labels_text = labels_text .. ", "
     end
 
     local bookmark_id, err
@@ -117,7 +125,7 @@ function Readeck:onAddArticleToReadeck(article_url)
             },
             {
                 description = _"Labels",
-                text = labelsToString(self:getSetting("default_labels")),
+                text = labels_text,
                 hint = _"E.g.: label 1, label 2, ... (optional)",
             },
         },
@@ -147,7 +155,8 @@ function Readeck:onAddArticleToReadeck(article_url)
                             text =
                                 bookmark_id
                                 and T(_"Bookmark for\n%1\nsuccessfully created.", BD.url(article_url))
-                                or T(_"Failed to create bookmark: %1", err),
+                                or T(_"Failed to create bookmark:\n%1", err),
+                            timeout = 3,
                         })
                         return  bookmark_id, err
                     end
