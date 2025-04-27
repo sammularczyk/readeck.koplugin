@@ -55,8 +55,6 @@ end
 
 function Readeck:init()
     self.settings = LuaSettings:open(DataStorage:getSettingsDir() .. "/readeck.lua")
-    -- TODO remove debug
-    logger:setLevel(logger.levels.dbg)
 
     self.api = ReadeckApi:new({
         settings = self.settings,
@@ -242,20 +240,24 @@ and then restart KOReader.]], self.settings.file)
             }, {
                 {
                     text = _"Sign in (generate API token) and save",
+                    timeout = 5,
                     callback = function()
                         local fields = dialog:getFields()
                         local token, err = self.api:authenticate(fields[2], fields[3])
                         if not token then
-                            UIManager:show(InfoMessage:new{ text = _(err) })
+                            UIManager:show(InfoMessage:new{ text = err })
                             return
                         end
 
                         fields[4] = token
-                        UIManager:show(InfoMessage:new{ text = _"Logged in successfully." })
+                        UIManager:show(InfoMessage:new{
+                            text = _"Logged in successfully.",
+                            timeout = 5,
+                        })
 
                         saveSettings(fields)
                         UIManager:close(dialog)
-                    end
+                    end,
                 }
             },
         },

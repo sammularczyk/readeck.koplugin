@@ -1,4 +1,5 @@
 local BD = require("ui/bidi")
+local BookList = require("ui/widget/booklist")
 local ButtonDialog = require("ui/widget/buttondialog")
 local Cache = require("cache")
 local CheckButton = require("ui/widget/checkbutton")
@@ -55,12 +56,20 @@ function MenuPath:new(o)
 end
 
 function MenuPath:buildItemTable()
-    logger.dbg("Readeck: MenuPath:buildItemTable(): Method was not overriden. Returning empty item table.")
-    return {}
+    return nil, T("Readeck: MenuPath:buildItemTable(): Method was not overriden for %1. Returning empty item table.", self.title or "nil")
 end
 
 function MenuPath:getItemTable()
-    return self.item_table or self:buildItemTable()
+    if not self.item_table then
+        local result, err = self:buildItemTable()
+        if not result then
+            return nil, err
+        end
+
+        self.item_table = result
+    end
+
+    return self.item_table
 end
 
 -- -- Bookmarks path
@@ -71,19 +80,35 @@ local BookmarksPath = MenuPath:extend{
 }
 
 function BookmarksPath:buildItemTable()
-    self.item_table = {}
+    local bookmarks, err = self.browser.api:bookmarkList(self.query)
+    if not bookmarks then
+        return nil, err
+    end
 
-    -- TODO handle permission errors and internet connection
-    local bookmarks = self.browser.api:bookmarkList(self.query)
+    local item_table = {}
     for i, b in ipairs(bookmarks) do
-        self.item_table[i] = {
+        item_table[i] = {
             text = b.title,
-            mandatory = b.read_progress .. "%",
+            mandatory_func = function()
+                local progress_str
+                if self.browser.api:bookmarkDownloaded(b) then
+                    local book_info = BookList.getBookInfo(self.browser.api:getBookmarkFilename(b))
+                    local local_progress = 100 * util.round_decimal(book_info.percent_finished or 0, 2)
+
+                    progress_str = local_progress == b.read_progress
+                                    and local_progress .. "%  " -- FontAwesome download icon
+                                    or T("%1%  %2% ", local_progress, b.read_progress)
+                else
+                    progress_str = b.read_progress .. "% " -- FontAwesome cloud icon
+                end
+
+                return T("%1, %2min", progress_str, b.reading_time)
+            end,
             bookmark = b,
         }
     end
 
-    return self.item_table
+    return item_table
 end
 
 function BookmarksPath:onMenuSelect(item)
@@ -114,12 +139,14 @@ local LabelsPath = MenuPath:extend{
 }
 
 function LabelsPath:buildItemTable()
-    self.item_table = {}
+    local item_table = {}
 
-    -- TODO handle errors and internet connection
-    local labels = self.browser.api:labelList()
+    local labels, err = self.browser.api:labelList()
+    if not labels then
+        return nil, err
+    end
     for i, l in ipairs(labels) do
-        self.item_table[i] = {
+        item_table[i] = {
             text = l.name,
             mandatory = l.count,
             path = BookmarksPath:new{
@@ -130,7 +157,7 @@ function LabelsPath:buildItemTable()
         }
     end
 
-    return self.item_table
+    return item_table
 end
 
 function LabelsPath:onMenuSelect(item)
@@ -145,7 +172,7 @@ local RootPath = MenuPath:extend{
 }
 
 function RootPath:buildItemTable()
-    self.item_table = {
+    local item_table = {
         {
             text = _"Unread Bookmarks",
             -- TODO mandatory = get amount somehow
@@ -192,10 +219,11 @@ function RootPath:buildItemTable()
                     query = collection
                 }
             }
-            table.insert(self.item_table, item)
+            table.insert(item_table, item)
         end
     end
-    return self.item_table
+
+    return item_table
 end
 
 function RootPath:onLeftButtonTap()
@@ -244,6 +272,15 @@ function Browser:getCurrentPath()
 end
 
 function Browser:pushPath(path)
+    local new_item_table, err = path:getItemTable()
+    if not new_item_table then
+        UIManager:show(InfoMessage:new{
+            text = T(_"Couldn't load menu '%1':\n%2", path.title, err or _"Unknown error"),
+            timeout = 5,
+        })
+        return self.paths[#self.paths]
+    end
+
     table.insert(self.paths, path)
     self:switchItemTable(path.title, path:getItemTable(), path.itemnumber, nil, path.subtitle)
     return path

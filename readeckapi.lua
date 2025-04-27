@@ -1,3 +1,4 @@
+local socket = require("socket")
 local http = require("socket.http")
 local url = require("socket.url")
 local ltn12 = require("ltn12")
@@ -6,6 +7,11 @@ local lfs = require("libs/libkoreader-lfs")
 -- Apparently https://github.com/harningt/luajson
 local rapidjson = require("rapidjson")
 local logger = require("logger")
+
+local _ = require("gettext")
+local T = require("ffi/util").template
+
+local NetworkMgr = require("ui/network/manager")
 
 local defaults = require("defaultsettings")
 
@@ -72,6 +78,19 @@ end
 -- @return header, or nil
 -- @return nil, or error message
 function Api:callApi(sink, method, path, query, body, headers, no_auth)
+    local ret
+    NetworkMgr:runWhenOnline(function()
+        ret = { self:callApiWhenOnline(sink, method, path, query, body, headers, no_auth) }
+    end)
+
+    if ret then
+        return table.unpack(ret)
+    else
+        return log_return_error("Couldn't connect to the internet.")
+    end
+end
+
+function Api:callApiWhenOnline(sink, method, path, query, body, headers, no_auth)
     local target_url = self:buildUrl(path, query)
     logger.dbg("Readeck API: Sending " .. method .. " " .. target_url)
 
@@ -92,17 +111,19 @@ function Api:callApi(sink, method, path, query, body, headers, no_auth)
         headers["Content-Length"] = tostring(#bodyJson)
     end
 
-    local _, code, header = http.request {
+    local code, header = socket.skip(1, http.request {
         url = target_url,
         method = method,
         headers = headers,
         proxy = self.proxy,
         sink = sink,
         source = source,
-    }
+    })
 
-    if type(code) ~= "number" or code >= 400 then
-        return log_return_error("API call failed with status code " .. code)
+    if type(code) ~= "number" then
+        return log_return_error(code or _"Unknown error")
+    elseif code >= 400 then
+        return log_return_error("Status code " .. code)
     else
         return header
     end
@@ -133,7 +154,9 @@ function Api:callJsonApi(method, path, query, body, headers, no_auth)
 
     -- Even if the API call fails (returns > 400), we might still want the response JSON
     if not resp_headers then
-        return nil, err, json_result
+        return nil,
+            err .. (json_result and json_result.message and T(" (%1)", json_result.message) or ""),
+            json_result
     end
 
     if json_ok then
@@ -147,21 +170,25 @@ end
 
 -------======= Concrete API functions =======-------
 
-local hostname
-
 -- -- User Profile
 
 --- See https://your.readeck/docs/api#post-/auth
 function Api:authenticate(username, password)
-    if not hostname then
-        local cmd_out, err, err_code = io.popen("hostname")
-        if cmd_out then
-            hostname = cmd_out:read("*l")
-            cmd_out:close()
-        else
-            logger.dbg("Readeck: 'hostname' command failed: " .. err .. " (" .. tostring(err_code) .. ")")
-        end
+    if not username or not password or username == "" or password == "" then
+        return nil, "Please provide both username and password."
     end
+
+    -- Get my hostname for more informative API token name
+    local hostname
+    local cmd_out, err, err_code = io.popen("hostname")
+    if cmd_out then
+        hostname = cmd_out:read("*l")
+        cmd_out:close()
+    else
+        logger.dbg("Readeck: 'hostname' command failed: " .. err .. " (" .. tostring(err_code) .. ")")
+    end
+
+    -- Request API token creation
     local body = {
         application = "readeck.koplugin" .. (hostname and (" @ " .. hostname) or ""),
         username = username,
