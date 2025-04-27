@@ -18,8 +18,8 @@
 	- [ ] when offline, add bookmark to "push queue" until online
 - [-] Configuration menu
 	- [x] Logging in
+	- [x] Option to set default labels (e.g.: "from kindle")
 	- [ ] More settings...?
-	- [ ] Option to set default labels (e.g.: "from kindle")
 - [ ] Delete downloaded bookmarks
 	- [ ] Button to delete all/read/archived bookmarks
 	- [ ] Hold a bookmark in the browser to allow deletion

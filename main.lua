@@ -39,6 +39,25 @@ local ReadeckBrowser = require("readeckbrowser")
 
 local defaults = require("defaultsettings")
 
+
+---------====== UTILITY FUNCTIONS ========------
+
+local function parseLabels(labels_str)
+    local labels = {}
+    for label in labels_str:gmatch("[^,%s]+") do
+        table.insert(labels, label)
+    end
+
+    return labels
+end
+
+local function labelsToString(labels)
+    return table.concat(labels or {}, ", ")
+end
+
+
+---------====== MODULE ========------
+
 local Readeck = WidgetContainer:extend {
     name = "readeck",
 }
@@ -81,7 +100,7 @@ function Readeck:onAddArticleToReadeck(article_url)
         -- TODO store article link to upload on next sync
         UIManager:show(InfoMessage:new{
             text = T(_"Not connected to the internet. Couldn't add article:\n%1", BD.url(article_url)),
-            timeout = 1,
+            timeout = 3,
         })
         return nil, "Not connected"
     end
@@ -98,8 +117,8 @@ function Readeck:onAddArticleToReadeck(article_url)
             },
             {
                 description = _"Labels",
-                text = "",
-                hint = _"label 1, label 2, ... (optional)",
+                text = labelsToString(self:getSetting("default_labels")),
+                hint = _"E.g.: label 1, label 2, ... (optional)",
             },
         },
         buttons = {
@@ -117,11 +136,7 @@ function Readeck:onAddArticleToReadeck(article_url)
                     callback = function()
                         local fields = dialog:getFields()
                         local title = fields[1]
-                        local labels_str = fields[2]
-                        local labels = {}
-                        for label in labels_str:gmatch("[^,%s]+") do
-                            table.insert(labels, label)
-                        end
+                        local labels = parseLabels(fields[2])
 
                         bookmark_id, err = self.api:bookmarkCreate(article_url, title, labels)
 
@@ -147,31 +162,31 @@ function Readeck:onAddArticleToReadeck(article_url)
 end
 
 function Readeck:addToMainMenu(menu_items)
-    menu_items.readeck = {
-        text = _"Readeck",
+    menu_items.readeck_bookmarks = {
+        text = _"Readeck bookmarks",
         sorting_hint = "search",
+        callback = function()
+            self.browser = ReadeckBrowser:new{ api = self.api, settings = self.settings }
+            UIManager:show(self.browser)
+        end,
+    }
+    menu_items.readeck_settings = {
+        text = _"Readeck settings",
+        sorting_hint = "search_settings",
         sub_item_table = {
             {
-                text = _"Settings",
+                text = _"Readeck server and credentials",
+                keep_menu_open = true,
                 callback = function()
-                    return nil
+                    return self:severConfigDialog()
                 end,
-                sub_item_table = {
-                    {
-                        text = _"Configure Readeck server",
-                        keep_menu_open = true,
-                        callback = function()
-                            return self:severConfigDialog()
-                        end,
-                    }
-                },
             }, {
-                text = _"Bookmarks",
+                text = _"New bookmarks settings",
+                keep_menu_open = true,
                 callback = function()
-                    self.browser = ReadeckBrowser:new{ api = self.api, settings = self.settings }
-                    UIManager:show(self.browser)
-                end
-            },
+                    return self:newBookmarksConfigDialog()
+                end,
+            }
         },
     }
 end
@@ -188,7 +203,6 @@ You can also edit the configuration file directly in your settings folder:
 %1
 and then restart KOReader.]], self.settings.file)
 
-    local dialog
     local function saveSettings(fields)
         self.settings:saveSetting("server_url", fields[1]:gsub("/*$", "")) -- remove all trailing slashes
             :saveSetting("username", fields[2])
@@ -197,6 +211,7 @@ and then restart KOReader.]], self.settings.file)
             :flush()
     end
 
+    local dialog
     dialog = MultiInputDialog:new{
         title = _"Readeck server settings",
         fields = {
@@ -262,6 +277,46 @@ and then restart KOReader.]], self.settings.file)
             },
         },
     }
+
+    UIManager:show(dialog)
+    dialog:onShowKeyboard()
+end
+
+function Readeck:newBookmarksConfigDialog()
+    local function saveSettings(fields)
+        self.settings:saveSetting("default_labels", parseLabels(fields[1]))
+            :flush()
+    end
+
+    local dialog
+    dialog = MultiInputDialog:new{
+        title = _"New bookmarks settings",
+        fields = {
+            {
+                description = _"Default labels",
+                text = labelsToString(self:getSetting("default_labels")),
+                hint = _"E.g.: from koreader, label 2, ... (optional)",
+            },
+        },
+        buttons = {
+            {
+                {
+                    text = _"Cancel",
+                    id = "close",
+                    callback = function()
+                        UIManager:close(dialog)
+                    end
+                }, {
+                    text = _"Save",
+                    callback = function()
+                        saveSettings(dialog:getFields())
+                        UIManager:close(dialog)
+                    end
+                },
+            },
+        },
+    }
+
     UIManager:show(dialog)
     dialog:onShowKeyboard()
 end

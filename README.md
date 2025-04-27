@@ -19,14 +19,17 @@ there for better Lua development integration.*
 #TODO
 
 - Browse bookmarks  
-	You can browse your bookmarks and collections in `🔍 > Readeck > Bookmarks`.
+	You can browse your bookmarks and collections in `🔎 > Readeck bookmarks` (will likely be on the second page of the `🔎` menu).
 - Save links  
 	You can click on links while reading to add them as a bookmark to Readeck.
 
 ## Configuration
 
-Settings can be changed within KOReader in `🔍 > Readeck > Settings`. You **must**
-set the Server URL and either:
+Settings can be changed within KOReader in `🔎 > Settings > Readeck Settings`.
+
+### Server and credentials
+
+You **must** set the Server URL and either:
 - Username and Password, and click on "Sign in";
 - or the API Token, and click on "Save".
 
@@ -35,6 +38,12 @@ can manually create your API token at `http(s)://[yourreadeckserver]/profile/tok
 Don't forget to set both the "Bookmarks: Read Only" and "Bookmarks: Write Only"
 roles.
 
+### Misc.
+
+- New bookmark settings:
+	- Default labels: Comma-separated list of labels to add by default when
+		creating new bookmarks from links.
+
 You can also configure it by changing the `readeck.lua` file in your
 `koreader/settings` folder:
 
@@ -42,11 +51,11 @@ You can also configure it by changing the `readeck.lua` file in your
 return {
   data_dir = nil -- default: require("datastorage"):getDataDir() .. "/readeck",
   server_url = "http(s)://[yourreadeckserver]/", -- mandatory
-  -- Authentication
   username = nil, -- Needed to generate the API token automatically
   password = nil, -- Needed to generate the API token automatically
   api_token = nil, -- Generated automatically if username and password are given,
                    -- but can also be set manually.
+  default_labels = { }, -- string list
 }
 ```
 

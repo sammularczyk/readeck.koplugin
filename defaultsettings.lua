@@ -1,8 +1,8 @@
 return {
-  data_dir = require("datastorage"):getDataDir() .. "/readeck",
-  server_url = nil,
-  -- Authentication
-  api_token = nil,
-  username = nil,
-  password = nil,
+  data_dir = require("datastorage"):getDataDir() .. "/readeck", -- path string
+  server_url = nil, -- string
+  api_token = nil, -- string
+  username = nil, -- string
+  password = nil, -- string
+  default_labels = { }, -- string list
 }
