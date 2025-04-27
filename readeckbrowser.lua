@@ -77,8 +77,8 @@ function BookmarksPath:buildItemTable()
     local bookmarks = self.browser.api:bookmarkList(self.query)
     for i, b in ipairs(bookmarks) do
         self.item_table[i] = {
-            text = _(b.title),
-            mandatory = _(b.read_progress .. "%"),
+            text = b.title,
+            mandatory = b.read_progress .. "%",
             bookmark = b,
         }
     end
@@ -88,7 +88,7 @@ end
 
 function BookmarksPath:onMenuSelect(item)
     local downloading_dialog = InfoMessage:new{
-        text = T(_( self.browser.api:bookmarkDownloaded(item.bookmark)
+        text = T(_(self.browser.api:bookmarkDownloaded(item.bookmark)
                     and "Opening bookmark...\n%1"
                     or "Downloading bookmark...\n%1"), item.bookmark.title)
     }
@@ -99,7 +99,7 @@ function BookmarksPath:onMenuSelect(item)
         local err = already_downloaded
 
         UIManager:close(downloading_dialog)
-        UIManager:show(InfoMessage:new{ text = _("Error downloading bookmark: " .. err), })
+        UIManager:show(InfoMessage:new{ text = T(_"Error downloading bookmark: %1", err), })
         return nil
     end
 
@@ -110,7 +110,7 @@ end
 -- -- LabelsPath
 
 local LabelsPath = MenuPath:extend{
-    title = _("Redeck labels")
+    title = _"Redeck labels"
 }
 
 function LabelsPath:buildItemTable()
@@ -120,10 +120,10 @@ function LabelsPath:buildItemTable()
     local labels = self.browser.api:labelList()
     for i, l in ipairs(labels) do
         self.item_table[i] = {
-            text = _(l.name),
-            mandatory = _(l.count),
+            text = l.name,
+            mandatory = l.count,
             path = BookmarksPath:new{
-                title = _(l.name),
+                title = l.name,
                 browser = self.browser,
                 query = { labels = '"' .. l.name .. '"' }
             },
@@ -141,39 +141,39 @@ end
 -- -- RootPath
 
 local RootPath = MenuPath:extend{
-    title = _("Redeck bookmarks")
+    title = _"Redeck bookmarks"
 }
 
 function RootPath:buildItemTable()
     self.item_table = {
         {
-            text = _("Unread Bookmarks"),
+            text = _"Unread Bookmarks",
             -- TODO mandatory = get amount somehow
             path = BookmarksPath:new{
                 browser = self.browser,
                 query = { is_archived = false }
             }
         }, {
-            text = _("Archived Bookmarks"),
+            text = _"Archived Bookmarks",
             -- TODO mandatory = get amount somehow
             path = BookmarksPath:new{
                 browser = self.browser,
                 query = { is_archived = true }
             }
         }, {
-            text = _("Favorite Bookmarks"),
+            text = _"Favorite Bookmarks",
             path = BookmarksPath:new{
                 browser = self.browser,
                 query = { is_marked = true }
             }
         }, {
-            text = _("All Bookmarks"),
+            text = _"All Bookmarks",
             path = BookmarksPath:new{
                 browser = self.browser,
                 query = {}
             }
         }, {
-            text = _("Labels"),
+            text = _"Labels",
             path = LabelsPath:new{ browser = self.browser }
         },
     }
@@ -186,7 +186,7 @@ function RootPath:buildItemTable()
             -- QUERY, AND WILL BE IGNORED, LEADING TO THE EXPECTED RESULT
             collection.id = nil -- So the collection id doesn't conflict with the bookmark query
             local item = {
-                text = _("Collection: " .. collection.name),
+                text = T(_"Collection: %1", collection.name),
                 path = BookmarksPath:new{
                     browser = self.browser,
                     query = collection
@@ -204,7 +204,7 @@ end
 
 function RootPath:onMenuSelect(item)
     local new_path = item.path
-    new_path.title = _(new_path.title or item.text)
+    new_path.title = new_path.title or item.text
     self.browser:pushPath(new_path)
     return new_path
 end
@@ -229,8 +229,8 @@ function Browser:init()
 
     self.root_path = RootPath:new { browser = self }
     self.item_table = self.root_path:getItemTable()
-    self.title = _(self.root_path.title)
-    self.subtitle = _(self.root_path.subtitle)
+    self.title = self.root_path.title
+    self.subtitle = self.root_path.subtitle
 
     self.refresh_callback = function()
         --UIManager:setDirty(...?)

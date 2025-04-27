@@ -48,7 +48,7 @@ function Readeck:onDispatcherRegisterActions()
     Dispatcher:registerAction("helloworld_action", {
         category="none",
         event="HelloWorld",
-        title=_("Hello World"),
+        title=_"Hello World",
         general=true,
     })
 end
@@ -67,7 +67,7 @@ function Readeck:init()
     if self.ui.link then
         self.ui.link:addToExternalLinkDialog("22_readeck", function(this, link_url)
             return {
-                text = _("Add to Readeck"),
+                text = _"Add to Readeck",
                 callback = function()
                     UIManager:close(this.external_link_dialog)
                     this.ui:handleEvent(Event:new("AddArticleToReadeck", link_url))
@@ -82,7 +82,7 @@ function Readeck:onAddArticleToReadeck(article_url)
     if not NetworkMgr:isOnline() then
         -- TODO store article link to upload on next sync
         UIManager:show(InfoMessage:new{
-            text = T(_("Not connected to the internet. Couldn't add article:\n%1"), BD.url(article_url)),
+            text = T(_"Not connected to the internet. Couldn't add article:\n%1", BD.url(article_url)),
             timeout = 1,
         })
         return nil, "Not connected"
@@ -91,30 +91,30 @@ function Readeck:onAddArticleToReadeck(article_url)
     local bookmark_id, err
     local dialog
     dialog = MultiInputDialog:new {
-        title = T(_("Create bookmark for %1"), BD.url(article_url)),
+        title = T(_"Create bookmark for %1", BD.url(article_url)),
         fields = {
             {
-                description = _("Bookmark title"),
-                text = _(""),
-                hint = _("Custom title (optional)"),
+                description = _"Bookmark title",
+                text = "",
+                hint = _"Custom title (optional)",
             },
             {
-                description = _("Labels"),
-                text = _(""),
-                hint = _("label 1, label 2, ... (optional)"),
+                description = _"Labels",
+                text = "",
+                hint = _"label 1, label 2, ... (optional)",
             },
         },
         buttons = {
             {
                 {
-                    text = _("Cancel"),
+                    text = _"Cancel",
                     id = "close",
                     callback = function()
                         UIManager:close(dialog)
                     end
                 },
                 {
-                    text = _("OK"),
+                    text = _"OK",
                     id = "ok",
                     callback = function()
                         local fields = dialog:getFields()
@@ -133,8 +133,8 @@ function Readeck:onAddArticleToReadeck(article_url)
                         UIManager:show(InfoMessage:new {
                             text =
                                 bookmark_id
-                                and T(_("Bookmark for\n%1\nsuccessfully created."), BD.url(article_url))
-                                or T(_("Failed to create bookmark: %1"), err),
+                                and T(_"Bookmark for\n%1\nsuccessfully created.", BD.url(article_url))
+                                or T(_"Failed to create bookmark: %1", err),
                         })
                         return  bookmark_id, err
                     end
@@ -150,17 +150,17 @@ end
 
 function Readeck:addToMainMenu(menu_items)
     menu_items.readeck = {
-        text = _("Readeck"),
-        sorting_hint = "tools",
+        text = _"Readeck",
+        sorting_hint = "search",
         sub_item_table = {
             {
-                text = _("Settings"),
+                text = _"Settings",
                 callback = function()
                     return nil
                 end,
                 sub_item_table = {
                     {
-                        text = _("Configure Readeck server"),
+                        text = _"Configure Readeck server",
                         keep_menu_open = true,
                         callback = function()
                             return self:severConfigDialog()
@@ -168,7 +168,7 @@ function Readeck:addToMainMenu(menu_items)
                     }
                 },
             }, {
-                text = _("Bookmarks"),
+                text = _"Bookmarks",
                 callback = function()
                     self.browser = ReadeckBrowser:new{ api = self.api, settings = self.settings }
                     UIManager:show(self.browser)
@@ -183,12 +183,12 @@ function Readeck:getSetting(setting)
 end
 
 function Readeck:severConfigDialog()
-    local text_info = T(_([[
+    local text_info = T(_[[
 If you don't want your password being stored in plaintext, you can erase the password field and save the settings after logging in and getting your API token.
 
 You can also edit the configuration file directly in your settings folder:
 %1
-and then restart KOReader.]]), self.settings.file)
+and then restart KOReader.]], self.settings.file)
 
     local dialog
     local function saveSettings(fields)
@@ -200,40 +200,40 @@ and then restart KOReader.]]), self.settings.file)
     end
 
     dialog = MultiInputDialog:new{
-        title = _("Readeck server settings"),
+        title = _"Readeck server settings",
         fields = {
             {
-                text = _(self:getSetting("server_url")),
-                hint = _("Server URL")
+                text = self:getSetting("server_url"),
+                hint = _"Server URL"
             }, {
-                text = _(self:getSetting("username")),
-                hint = _("Username (if no API Token is given)")
+                text = self:getSetting("username"),
+                hint = _"Username (if no API Token is given)"
             }, {
-                text = _(self:getSetting("password")),
+                text = self:getSetting("password"),
                 text_type = "password",
-                hint = _("Password (if no API Token is given)")
+                hint = _"Password (if no API Token is given)"
             }, {
-                text = _(self:getSetting("api_token")),
-                description = _("API Token"),
+                text = self:getSetting("api_token"),
+                description = _"API Token",
                 text_type = "password",
-                hint = _("Will be acquired automatically if Username and Password are given.")
+                hint = _"Will be acquired automatically if Username and Password are given."
             },
         },
         buttons = {
             {
                 {
-                    text = _("Cancel"),
+                    text = _"Cancel",
                     id = "close",
                     callback = function()
                         UIManager:close(dialog)
                     end
                 }, {
-                    text = _("Info"),
+                    text = _"Info",
                     callback = function()
                         UIManager:show(InfoMessage:new{ text = text_info })
                     end
                 }, {
-                    text = _("Save"),
+                    text = _"Save",
                     callback = function()
                         saveSettings(dialog:getFields())
                         UIManager:close(dialog)
@@ -241,7 +241,7 @@ and then restart KOReader.]]), self.settings.file)
                 },
             }, {
                 {
-                    text = _("Sign in (generate API token) and save"),
+                    text = _"Sign in (generate API token) and save",
                     callback = function()
                         local fields = dialog:getFields()
                         local token, err = self.api:authenticate(fields[2], fields[3])
@@ -251,7 +251,7 @@ and then restart KOReader.]]), self.settings.file)
                         end
 
                         fields[4] = token
-                        UIManager:show(InfoMessage:new{ text = _("Logged in successfully.") })
+                        UIManager:show(InfoMessage:new{ text = _"Logged in successfully." })
 
                         saveSettings(fields)
                         UIManager:close(dialog)
