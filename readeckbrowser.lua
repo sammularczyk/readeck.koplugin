@@ -1,31 +1,18 @@
-local BD = require("ui/bidi")
 local BookList = require("ui/widget/booklist")
-local ButtonDialog = require("ui/widget/buttondialog")
 local Cache = require("cache")
-local CheckButton = require("ui/widget/checkbutton")
-local ConfirmBox = require("ui/widget/confirmbox")
-local DocumentRegistry = require("document/documentregistry")
 local InfoMessage = require("ui/widget/infomessage")
-local InputDialog = require("ui/widget/inputdialog")
+local LuaSettings = require("luasettings")
 local Menu = require("ui/widget/menu")
-local MultiInputDialog = require("ui/widget/multiinputdialog")
-local NetworkMgr = require("ui/network/manager")
-local Notification = require("ui/widget/notification")
 local ReaderUI = require("apps/reader/readerui")
 local UIManager = require("ui/uimanager")
-local http = require("socket.http")
-local lfs = require("libs/libkoreader-lfs")
-local logger = require("logger")
-local ltn12 = require("ltn12")
-local socket = require("socket")
-local socketutil = require("socketutil")
-local url = require("socket.url")
+
 local util = require("util")
+local logger = require("logger")
 local _ = require("gettext")
 local N_ = _.ngettext
 local T = require("ffi/util").template
 
-local defaults = require("defaultsettings")
+local ReadeckApi = require("readeckapi")
 
 local CatalogCache = Cache:new {
     -- Make it 20 slots, with no storage space constraints
@@ -76,11 +63,13 @@ end
 
 local BookmarksPath = MenuPath:extend{
     -- Queries parameters are directly used for https://[yourreadeck]/docs/api#get-/bookmarks
-    query = {}
+    query = {},
+    -- The entry id to get or save the bookmark list to
+    cache_entry = nil,
 }
 
 function BookmarksPath:buildItemTable()
-    local bookmarks, err = self.browser.api:bookmarkList(self.query)
+    local bookmarks, err = self.browser.api:bookmarkList(self.query, self.cache_entry)
     if not bookmarks then
         return nil, err
     end
@@ -150,9 +139,9 @@ function LabelsPath:buildItemTable()
             text = l.name,
             mandatory = l.count,
             path = BookmarksPath:new{
-                title = l.name,
                 browser = self.browser,
-                query = { labels = '"' .. l.name .. '"' }
+                query = { labels = '"' .. l.name .. '"' },
+                cache_entry = "l-" .. l.name,
             },
         }
     end
@@ -178,26 +167,30 @@ function RootPath:buildItemTable()
             -- TODO mandatory = get amount somehow
             path = BookmarksPath:new{
                 browser = self.browser,
-                query = { is_archived = false }
+                query = { is_archived = false },
+                cache_entry = "Unread",
             }
         }, {
             text = _"Archived Bookmarks",
             -- TODO mandatory = get amount somehow
             path = BookmarksPath:new{
                 browser = self.browser,
-                query = { is_archived = true }
+                query = { is_archived = true },
+                cache_entry = "Archived",
             }
         }, {
             text = _"Favorite Bookmarks",
             path = BookmarksPath:new{
                 browser = self.browser,
-                query = { is_marked = true }
+                query = { is_marked = true },
+                cache_entry = "Favorite",
             }
         }, {
             text = _"All Bookmarks",
             path = BookmarksPath:new{
                 browser = self.browser,
-                query = {}
+                query = {},
+                cache_entry = "All",
             }
         }, {
             text = _"Labels",
@@ -205,22 +198,26 @@ function RootPath:buildItemTable()
         },
     }
 
-    local result, err = self.browser.api:collectionList()
-    if result then
-        for i, collection in pairs(self.browser.api:collectionList()) do
-            -- NOTE: THIS IS ASSUMING NONE OF THE FIELDS OTHER THAN id RETURNED IN
-            -- collectionDetails CONTAINS ANY FIELDS RELEVANT FOR THE bookmarkList's
-            -- QUERY, AND WILL BE IGNORED, LEADING TO THE EXPECTED RESULT
-            collection.id = nil -- So the collection id doesn't conflict with the bookmark query
-            local item = {
-                text = T(_"Collection: %1", collection.name),
-                path = BookmarksPath:new{
-                    browser = self.browser,
-                    query = collection
-                }
+    local collections, err = self.browser.api:collectionList()
+    if not collections then
+        return item_table, err
+    end
+
+    for i, c in pairs(collections) do
+        local collection_id = c.id
+        -- NOTE: THIS IS ASSUMING NONE OF THE FIELDS OTHER THAN id RETURNED IN
+        -- collectionDetails CONTAINS ANY FIELDS RELEVANT FOR THE bookmarkList's
+        -- QUERY, AND WILL BE IGNORED, LEADING TO THE EXPECTED RESULT
+        c.id = nil -- So the collection id doesn't conflict with the bookmark query
+        local item = {
+            text = T(_"Collection: %1", c.name),
+            path = BookmarksPath:new{
+                browser = self.browser,
+                query = c,
+                cache_entry = collection_id
             }
-            table.insert(item_table, item)
-        end
+        }
+        table.insert(item_table, item)
     end
 
     return item_table
@@ -240,10 +237,21 @@ end
 
 --------====== BROWSER WINDOW ======--------
 
-local Browser = Menu:extend {
-    api = nil,
-    settings = nil,
+local Browser = Menu:extend{
+    -- Mandatory
+    api = ReadeckApi,
+    settings = LuaSettings,
 }
+
+function Browser:new(o)
+    print(o.api)
+    print(o.settings)
+    if not (o and o.api and o.settings) then
+        logger.warn("Browser:new() : Missing constructor parameters")
+        return nil, "Missing constructor parameters"
+    end
+    return getmetatable(self).new(self, o)
+end
 
 function Browser:init()
     self.no_title = false

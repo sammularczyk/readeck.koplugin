@@ -12,8 +12,12 @@ local _ = require("gettext")
 local T = require("ffi/util").template
 
 local NetworkMgr = require("ui/network/manager")
+local LuaSettings = require("luasettings")
+
+local ReadeckCache = require("readeckcache")
 
 local defaults = require("defaultsettings")
+
 
 local function log_return_error(err_msg)
     err_msg = "Readeck API error: " .. err_msg
@@ -22,14 +26,22 @@ local function log_return_error(err_msg)
 end
 
 local Api = {
-    settings = nil,
-    token = nil,
+    -- Mandatory
+    settings = LuaSettings,
+    cache = ReadeckCache,
+    -- Optional
     proxy = nil,
+    -- Internal
     logged_in = false,
 }
 
 function Api:new(o)
     o = o or {}
+    if not (o.settings and o.cache) then
+        logger.warn("Api:new() : Missing constructor parameters")
+        return nil, "Missing constructor parameters"
+    end
+
     setmetatable(o, self)
     self.__index = self
     o:init()
@@ -37,9 +49,7 @@ function Api:new(o)
 end
 
 function Api:init()
-    if self:getSetting("server_url") and self:getSetting("api_token") then
-        self.logged_in = true
-    end
+    self.logged_in = self:getSetting("server_url") and self:getSetting("api_token")
 end
 
 function Api:getSetting(setting)
@@ -216,8 +226,16 @@ end
 -- -- Bookmarks
 
 --- See https://your.readeck/docs/api#get-/bookmarks
-function Api:bookmarkList(query)
-    return self:callJsonApi("GET", "/bookmarks", query)
+function Api:bookmarkList(query, cache_entry)
+    -- TODO define limits and pagination?
+    local result, err = self:callJsonApi("GET", "/bookmarks", query)
+    if result and cache_entry then
+        self.cache:cacheBookmarkList(cache_entry, result)
+    elseif cache_entry then
+        logger.dbg("ReadeckApi:bookmarkList() : Couldn't fetch bookmark list. Loading from cache entry:", cache_entry)
+        result = self.cache:getCachedBookmarksFromList(cache_entry)
+    end
+    return result, err
 end
 
 --- See https://your.readeck/docs/api#post-/bookmarks
@@ -233,7 +251,7 @@ function Api:bookmarkCreate(bookmark_url, title, labels)
         return response, headers
     end
 
-    logger.dbg("Readeck: Bookmark created: " .. tostring(headers["bookmark-id"]))
+    logger.dbg("Readeck: Bookmark created:", tostring(headers["bookmark-id"]))
     return headers["bookmark-id"]
 end
 
@@ -259,7 +277,14 @@ end
 
 --- See https://your.readeck/docs/api#get-/bookmarks/labels
 function Api:labelList()
-    return self:callJsonApi("GET", "/bookmarks/labels")
+    local result, err = self:callJsonApi("GET", "/bookmarks/labels")
+    if result then
+        self.cache:cacheLabelList(result)
+    else
+        logger.dbg("ReadeckApi:labelList() : Couldn't fetch label list. Loading cache entry.")
+        result = self.cache:getCachedLabelList()
+    end
+    return result, err
 end
 
 -- TODO labelInfo
@@ -280,7 +305,14 @@ end
 --- See https://your.readeck/docs/api#get-/bookmarks/collections
 function Api:collectionList()
     -- TODO define limits and pagination?
-    return self:callJsonApi("GET", "/bookmarks/collections")
+    local result, err = self:callJsonApi("GET", "/bookmarks/collections")
+    if result then
+        self.cache:cacheCollectionList(result)
+    else
+        logger.dbg("ReadeckApi:collectionList() : Couldn't fetch collection list. Loading cache entry.")
+        result = self.cache:getCachedCollectionList()
+    end
+    return result, err
 end
 
 -- TODO collectionCreate

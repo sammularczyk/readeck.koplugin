@@ -2,43 +2,28 @@
 @module koplugin.readeck
 ]]
 
-local logger = require("logger")
-
-local Dispatcher = require("dispatcher")  -- luacheck:ignore
-local InfoMessage = require("ui/widget/infomessage")
-local UIManager = require("ui/uimanager")
-local WidgetContainer = require("ui/widget/container/widgetcontainer")
-local DataStorage = require("datastorage")
-local LuaSettings = require("luasettings")
-local Event = require("ui/event")
 local BD = require("ui/bidi")
-local DocSettings = require("docsettings")
-local DocumentRegistry = require("document/documentregistry")
+local DataStorage = require("datastorage")
+local Dispatcher = require("dispatcher")  -- luacheck:ignore
+local Event = require("ui/event")
 local FFIUtil = require("ffi/util")
-local FileManager = require("apps/filemanager/filemanager")
-local InputDialog = require("ui/widget/inputdialog")
-local Math = require("optmath")
-local MultiConfirmBox = require("ui/widget/multiconfirmbox")
+local InfoMessage = require("ui/widget/infomessage")
+local LuaSettings = require("luasettings")
 local MultiInputDialog = require("ui/widget/multiinputdialog")
 local NetworkMgr = require("ui/network/manager")
-local ReadHistory = require("readhistory")
-local filemanagerutil = require("apps/filemanager/filemanagerutil")
-local http = require("socket.http")
-local lfs = require("libs/libkoreader-lfs")
-local ltn12 = require("ltn12")
-local socket = require("socket")
-local socketutil = require("socketutil")
-local util = require("util")
-local _ = require("gettext")
-local N_ = _.ngettext
-local T = FFIUtil.template
+local UIManager = require("ui/uimanager")
+local WidgetContainer = require("ui/widget/container/widgetcontainer")
 
+local logger = require("logger")
+local _ = require("gettext")
+local T = FFIUtil.template
+local N_ = _.ngettext
 
 local ReadeckApi = require("readeckapi")
 local ReadeckBrowser = require("readeckbrowser")
+local ReadeckCache = require("readeckcache")
 
 local defaults = require("defaultsettings")
-
 
 ---------====== UTILITY FUNCTIONS ========------
 
@@ -63,6 +48,9 @@ end
 
 local Readeck = WidgetContainer:extend {
     name = "readeck",
+    -- Set by init()
+    settings = LuaSettings,
+    cache = ReadeckCache,
 }
 
 function Readeck:onDispatcherRegisterActions()
@@ -78,9 +66,14 @@ end
 function Readeck:init()
     self.settings = LuaSettings:open(DataStorage:getSettingsDir() .. "/readeck.lua")
 
-    self.api = ReadeckApi:new({
+    self.cache = ReadeckCache:new{
         settings = self.settings,
-    })
+    }
+
+    self.api = ReadeckApi:new{
+        settings = self.settings,
+        cache = self.cache,
+    }
 
     self:onDispatcherRegisterActions()
     self.ui.menu:registerToMainMenu(self)
