@@ -1,8 +1,8 @@
 local CacheSQLite = require("cachesqlite")
 local LuaSettings = require("luasettings")
 
-local logger = require("logger")
 local defaults = require("defaultsettings")
+local logger = require("logger")
 
 --- @todo this could be much better optimized by using lua-ljsqlite3 directly
 local ReadeckCache = {

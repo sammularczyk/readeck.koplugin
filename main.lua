@@ -15,6 +15,7 @@ local UIManager = require("ui/uimanager")
 local WidgetContainer = require("ui/widget/container/widgetcontainer")
 
 local logger = require("logger")
+local util = require("util")
 local _ = require("gettext")
 local T = FFIUtil.template
 local N_ = _.ngettext
@@ -65,6 +66,7 @@ end
 
 function Readeck:init()
     self.settings = LuaSettings:open(DataStorage:getSettingsDir() .. "/readeck.lua")
+    util.makePath(self:getSetting("data_dir"))
 
     self.cache = ReadeckCache:new{
         settings = self.settings,
