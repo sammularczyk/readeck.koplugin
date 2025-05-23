@@ -31,8 +31,6 @@ local Api = {
     cache = ReadeckCache,
     -- Optional
     proxy = nil,
-    -- Internal
-    logged_in = false,
 }
 
 function Api:new(o)
@@ -44,18 +42,13 @@ function Api:new(o)
 
     setmetatable(o, self)
     self.__index = self
-    o:init()
+    if o.init then o:init() end
     return o
-end
-
-function Api:init()
-    self.logged_in = self:getSetting("server_url") and self:getSetting("api_token")
 end
 
 function Api:getSetting(setting)
     return self.settings:readSetting(setting, defaults[setting])
 end
-
 
 -------======= API call utilities =======-------
 
@@ -88,6 +81,35 @@ end
 -- @return header, or nil
 -- @return nil, or error message
 function Api:callApi(sink, method, path, query, body, headers, no_auth)
+    local server_url = self:getSetting("server_url")
+    if not server_url or server_url:len() == 0 then
+        return log_return_error(
+            _'Readeck server not defined. Please do so in "Readeck settings ▸ Readeck server and credentials"')
+    end
+    if not self:getSetting("server_url"):match("^https?://") then
+        return log_return_error(
+            _'Readeck server URL missing protocol "http://" or "https://".  Please adjust in "Readeck settings ▸ Readeck server and credentials"')
+    end
+
+    local api_token = self:getSetting("api_token")
+    if not no_auth and (not api_token or api_token:len() == 0) then
+        logger.dbg("BABEU")
+        local username = self:getSetting("username")
+        local password = self:getSetting("password")
+        if username and username:len() ~= 0 and password and password:len() ~= 0 then
+            logger.dbg("BABEU2")
+            local result, err = self:authenticate(username, password)
+            if err then
+                return result, err
+            end
+        else
+            logger.dbg("BABEU3")
+            return log_return_error(
+                _'Need authentication, but username and/or password not defined. Please do so in "Readeck settings ▸ Readeck server and credentials"')
+        end
+    end
+    logger.dbg("BABEU4")
+
     local ret
     NetworkMgr:runWhenOnline(function()
         ret = { self:callApiWhenOnline(sink, method, path, query, body, headers, no_auth) }
@@ -131,7 +153,7 @@ function Api:callApiWhenOnline(sink, method, path, query, body, headers, no_auth
     })
 
     if type(code) ~= "number" then
-        return log_return_error(code or _"Unknown error")
+        return log_return_error(code or _ "Unknown error")
     elseif code >= 400 then
         return log_return_error("Status code " .. code)
     else
@@ -177,7 +199,6 @@ function Api:callJsonApi(method, path, query, body, headers, no_auth)
     end
 end
 
-
 -------======= Concrete API functions =======-------
 
 -- -- User Profile
@@ -212,7 +233,6 @@ function Api:authenticate(username, password)
 
     if result.token then
         self.settings:saveSetting("api_token", result.token)
-        self.logged_in = true
     end
     return result.token
 end
@@ -221,7 +241,6 @@ end
 function Api:userProfile()
     return self:callJsonApi("GET", "/profile")
 end
-
 
 -- -- Bookmarks
 
@@ -270,7 +289,8 @@ end
 -- @return Response header, or nil
 -- @return nil, or error message
 function Api:bookmarkExport(file, id)
-    return self:callDownloadApi(file, "GET", "/bookmarks/" .. id .. "/article.epub", nil, nil, { ["Accept"] = "application/epub+zip" })
+    return self:callDownloadApi(file, "GET", "/bookmarks/" .. id .. "/article.epub", nil, nil,
+        { ["Accept"] = "application/epub+zip" })
 end
 
 -- -- Labels
@@ -344,19 +364,24 @@ end
 local function makeTimeStamp(dateString)
     -- 2025-04-20T11:19:34.431815474Z
     local year, month, day, hour, minute, seconds, offset, offsethour, offsetmin =
-            dateString:match("(%d+)%-(%d+)%-(%d+)T(%d+):(%d+):(%d+).%d+([%+%-])(%d+)%:(%d+)")
+        dateString:match("(%d+)%-(%d+)%-(%d+)T(%d+):(%d+):(%d+).%d+([%+%-])(%d+)%:(%d+)")
     local offsetTimestamp
     if year then
         offsetTimestamp = offsethour * 60 + offsetmin
         if offset == "-" then offsetTimestamp = offsetTimestamp * -1 end
     else
         year, month, day, hour, minute, seconds =
-                dateString:match("(%d+)%-(%d+)%-(%d+)T(%d+):(%d+):(%d+).%d+Z")
+            dateString:match("(%d+)%-(%d+)%-(%d+)T(%d+):(%d+):(%d+).%d+Z")
         offsetTimestamp = 0
     end
-    print(year,month,day,hour,minute,seconds,offset,offsethour,offsetmin)
-    local convertedTimestamp = os.time({year = year, month = month, day = day,
-                                        hour = hour, min = minute, sec = seconds})
+    local convertedTimestamp = os.time({
+        year = year,
+        month = month,
+        day = day,
+        hour = hour,
+        min = minute,
+        sec = seconds
+    })
     return convertedTimestamp + offsetTimestamp
 end
 
@@ -390,7 +415,10 @@ function Api:syncBookmarkDetails(bookmark)
     end
 
     local ok, result = pcall(makeTimeStamp, bookmark.updated)
-    if not ok then logger.dbg("Error making timestamp: " .. result) return nil, result end
+    if not ok then
+        logger.dbg("Error making timestamp: " .. result)
+        return nil, result
+    end
     local remotetime = result
 
     if localtime > remotetime then
@@ -412,7 +440,7 @@ function Api:downloadBookmark(bookmark)
     util.makePath(self:getDownloadDir())
 
     local result, err = self:callDownloadApi(file, "GET", "/bookmarks/" .. bookmark.id .. "/article.epub",
-                    nil, nil, { ["Accept"] = "application/epub+zip" })
+        nil, nil, { ["Accept"] = "application/epub+zip" })
     if result then
         self:applyBookmarkDetails(bookmark)
         return file, false
@@ -423,4 +451,3 @@ function Api:downloadBookmark(bookmark)
 end
 
 return Api
-

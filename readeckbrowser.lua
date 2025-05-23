@@ -200,6 +200,7 @@ function RootPath:buildItemTable()
 
     local collections, err = self.browser.api:collectionList()
     if not collections then
+        logger.warn("ReadeckBrowser : Couldn't load collections: " .. err)
         return item_table, err
     end
 
