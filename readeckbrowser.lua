@@ -124,7 +124,7 @@ end
 -- -- LabelsPath
 
 local LabelsPath = MenuPath:extend{
-    title = _"Redeck labels"
+    title = _"Readeck labels"
 }
 
 function LabelsPath:buildItemTable()
@@ -157,7 +157,7 @@ end
 -- -- RootPath
 
 local RootPath = MenuPath:extend{
-    title = _"Redeck bookmarks"
+    title = _"Readeck bookmarks"
 }
 
 function RootPath:buildItemTable()
